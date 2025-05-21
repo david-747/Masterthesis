@@ -9,7 +9,7 @@ import numpy as np
 # from MiscShipping import Product, PriceVector, Price
 # from Context import DomainContext
 
-class CMABStrategy:
+class CMAB:
     def __init__(self,
                  agent: 'DelayedTSAgent',
                  lp_solver_function,

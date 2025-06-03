@@ -9,7 +9,13 @@ import numpy as np
 # from MiscShipping import Product, PriceVector, Price
 # from Context import DomainContext
 
+# CMAB is the orchestrator of the model
 class CMAB:
+    #takes instance of DelayedTSAgent as one of its main components
+    #takes lp_solver_function, function (defined elsewhere) used to solve a Linera Programming problem
+    #LP helps decide the optimal probabilities of offering different price vectors considering resource constraints
+    # __init__ store information about products, price vectors, resource consumption by products, initial ressource
+    #inventory and total time periods
     def __init__(self,
                  agent: 'DelayedTSAgent',
                  lp_solver_function,
@@ -72,6 +78,10 @@ class CMAB:
 
         self.current_lp_solution_x_ksi_k = None  # Stores the result of LP optimization (Step 2)
 
+
+    #at start of each period t, the simulator environment will call this method with any feedback that has arrived
+    #CMAB simply passes this feedback along to self.agent.process_arrived_feedback(feedback_id, success)
+    #this updates the agents demand model before making new decisions for the c
     def process_feedback_for_agent(self, feedback_to_process: list[tuple[any, bool]]):
         """
         Passes arrived feedback to the agent for posterior updates.
@@ -86,6 +96,15 @@ class CMAB:
         for feedback_id, success in feedback_to_process:
             self.agent.process_arrived_feedback(feedback_id, success)
 
+
+    #performs Step 1 and 2 of Algorithm 4 of Ferreira et al
+    #Step 1 (Sample Demand): calls self.agent.get_sampled_theta() to get get the agents current best guess of demand
+    #                        rate for all context-product-price combinations
+    #Step 2 (Optimize Prices): calls self.lp_solver() function. Solver uses sampled demand rates, actual prices,
+    #                          resource consumption rates and ressource constraints to determine an optimal
+    #                          randomized pricing policy
+    #                          this policy is stored in self.current_lp_solution_x_ksi_k and looks like:
+    #                          {context_object: {price_vector_id: probability_of_offering_this_price_vector}}
     def determine_pricing_policy_for_period(self):
         """
         Performs Steps 1 and 2 of Algorithm 4 (delay-adapted):
@@ -117,6 +136,17 @@ class CMAB:
         # Expected structure of self.current_lp_solution_x_ksi_k:
         # {context_obj: {price_vector_id: probability_x_ksi_k}}
 
+    #performs Step 3 of algorithm
+    #Step 3: 3.1 takes observed_realized_context for the current period
+    #        3.2 looks up the pricing policy (probabilities) for this context from self.current_lp_solution_x_ksi_k
+    #        3.3 randomly selects a chosen_price_vector_id based on these probabilities
+    #            might also result in choosing p_infinity (represented as None), meaning no products are offered
+    #        3.4 if specific price vector is chosen:
+    #            for each product, it generates a unique feedback_id (touple of time, context, price vector id,
+    #            product id) and calls self.agent.record_action_taken() with this feedback id and other details
+    #            this tells the agent to expect feedback for this specfic action on this product later
+    #            returns the chosen price vector ID and map of {Product_obj: feedback_id}
+    #        3.5 if p_infinity is chosen: it returns None, None
     def select_action_and_record_for_feedback(self,
                                               observed_realized_context: 'DomainContext',
                                               current_time_t: int) -> tuple[int | None, dict['Product', any] | None]:

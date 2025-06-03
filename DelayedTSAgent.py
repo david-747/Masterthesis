@@ -2,8 +2,10 @@
 from collections import defaultdict
 import numpy as np
 
-
+#DTSA is the learner of of the model
 class DelayedTSAgent:
+    #assume bernoulli demand -> for each combination of context, product and price
+    #DTSA maintains alpha and beta parameters of a Beta distribution
     def __init__(self, all_possible_contexts, all_possible_products, all_possible_price_indices, demand_model_type='bernoulli'):
         self.all_contexts = all_possible_contexts
         self.all_products = all_possible_products
@@ -19,6 +21,9 @@ class DelayedTSAgent:
         # Value: {'product_id': ..., 'price_idx': ..., 'context': ...}
         self.pending_actions_info = {}
 
+    #samples mean demand (probability of sale in case of bernoulli demand) from the current posterior
+    #(Beta distribution in case of bernoulli demand) for all possible context-product-price combinations
+    #this sampled demand is then used by the CMAB class
     def get_sampled_theta(self):
         """
         Samples a complete set of mean demand rates theta from the *current* posterior
@@ -49,6 +54,10 @@ class DelayedTSAgent:
 
         return sampled_theta
 
+
+    #when CMAB decides on an action (i.e. a price vector to offer), it tells the agent via this method
+    #the agent stores information about this action in self.pending_actions_info
+    #this is crucial because feedback on this action might arrive later
     def record_action_taken(self, time_t, context, product_id, price_idx, action_id):
         """
         Records that an action was taken, so we know its details when feedback arrives.
@@ -62,6 +71,12 @@ class DelayedTSAgent:
             'price_idx': price_idx
         }
 
+
+    #when feedback (in case of of bernoulli demand -> sale/no sale) arrives for past action, CMAB passes this
+    #to the agent using this method
+    #agent looks up action_id in pending_actions_info to retrieve context, product and price associated with
+    #feedback
+    #the agent then updates alpha and beta parameters for that specific combination, refining the demand model
     def process_arrived_feedback(self, action_id, observed_success, observed_trials=1):
         """
         Called when feedback for a previously taken action arrives.

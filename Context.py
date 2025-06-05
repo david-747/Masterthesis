@@ -1,94 +1,115 @@
-# Context.py
+# Context.py (Modified to use Enums for dimensions)
 
 import itertools
+from enum import Enum
+
+class Season(Enum):
+    """Enumeration for specific seasons."""
+    LOW = "low"
+    MID = "mid"
+    HIGH = "high"
+
+    def __str__(self):
+        return self.value # User-friendly string representation
+
+class CustomerType(Enum):
+    """Enumeration for specific customer types."""
+    NEW = "new"
+    RECURRING = "recurring"
+
+    def __str__(self):
+        return self.value
+
+class Commodity(Enum):
+    """Enumeration for specific commodity types."""
+    ELECTRONICS = "electronics"
+    APPAREL = "apparel"
+    # Add more as needed
+
+    def __str__(self):
+        return self.value
 
 class Context:
     """
     Represents a multi-domain context for pricing decisions.
-    It's designed to be hashable and comparable so it can be used as a dictionary key.
+    It's designed to be hashable and comparable and uses Enums for dimensions.
     """
-    def __init__(self, season: str, customer_type: str, commodity: str):
+    def __init__(self, season: Season, customer_type: CustomerType, commodity: Commodity):
         """
-        Initializes a context with specific values for each domain.
+        Initializes a context with specific enum members for each dimension.
 
         Args:
-            season (str): The season (e.g., 'low_season', 'high_season').
-            customer_type (str): The type of customer (e.g., 'new', 'recurring').
-            commodity (str): The commodity type (e.g., 'electronics', 'apparel').
+            season (Season): An instance of the Season Enum.
+            customer_type (CustomerType): An instance of the CustomerType Enum.
+            commodity (Commodity): An instance of the Commodity Enum.
         """
+        if not isinstance(season, Season):
+            raise TypeError("season must be an instance of Season Enum.")
+        if not isinstance(customer_type, CustomerType):
+            raise TypeError("customer_type must be an instance of CustomerType Enum.")
+        if not isinstance(commodity, Commodity):
+            raise TypeError("commodity must be an instance of Commodity Enum.")
+
         self.season = season
         self.customer_type = customer_type
         self.commodity = commodity
 
-        # Pre-compute the tuple for hashing and equality, ensuring order
+        # Pre-compute the tuple for hashing and equality. Enum members are hashable.
         self._key = (self.season, self.customer_type, self.commodity)
 
     def __hash__(self):
-        """
-        Returns a hash value for the context, allowing it to be used in sets and as dict keys.
-        """
         return hash(self._key)
 
     def __eq__(self, other):
-        """
-        Checks if this context is equal to another context.
-        Two contexts are equal if all their domain values are the same.
-        """
         if isinstance(other, Context):
             return self._key == other._key
         return False
 
     def __repr__(self):
-        """
-        Returns an unambiguous string representation of the context object.
-        """
-        return (f"DomainContext(season='{self.season}', "
-                f"customer_type='{self.customer_type}', "
-                f"commodity='{self.commodity}')")
+        return (f"Context(season={self.season!r}, " # Use !r for Enum's repr
+                f"customer_type={self.customer_type!r}, "
+                f"commodity={self.commodity!r})")
 
     def __str__(self):
-        """
-        Returns a user-friendly string representation of the context.
-        """
-        return f"Context(Season: {self.season}, Customer: {self.customer_type}, Commodity: {self.commodity})"
+        return (f"Context(Season: {self.season}, " # Relies on Enum's __str__
+                f"Customer: {self.customer_type}, "
+                f"Commodity: {self.commodity})")
 
-# --- Optional: Helper function to generate all possible context combinations ---
-def generate_all_domain_contexts(possible_seasons, possible_customer_types, possible_commodities):
+# --- Helper function to generate all possible context combinations ---
+def generate_all_domain_contexts(possible_seasons: list[Season],
+                                 possible_customer_types: list[CustomerType],
+                                 possible_commodities: list[Commodity]) -> list[Context]:
     """
-    Generates a list of all possible DomainContext objects from the given domain values.
+    Generates a list of all possible Context objects from the given Enum members.
 
     Args:
-        possible_seasons (list[str]): A list of all possible season values.
-        possible_customer_types (list[str]): A list of all possible customer type values.
-        possible_commodities (list[str]): A list of all possible commodity values.
+        possible_seasons (list[Season]): A list of all possible Season Enum members (e.g., [Season.LOW, Season.HIGH]).
+        possible_customer_types (list[CustomerType]): A list of all possible CustomerType Enum members.
+        possible_commodities (list[Commodity]): A list of all possible Commodity Enum members.
 
     Returns:
-        list[Context]: A list containing all unique DomainContext combinations.
+        list[Context]: A list containing all unique Context combinations.
     """
     all_contexts = []
+    # itertools.product will correctly iterate over lists of Enum members
     for combination in itertools.product(possible_seasons, possible_customer_types, possible_commodities):
         all_contexts.append(Context(season=combination[0],
-                                          customer_type=combination[1],
-                                          commodity=combination[2]))
+                                    customer_type=combination[1],
+                                    commodity=combination[2]))
     return all_contexts
 
-# --- Example Usage (you can put this in a test script or your main simulator setup) ---
+# --- Example Usage ---
 if __name__ == '__main__':
-    # Define the possible values for each domain
-    seasons = ['low', 'mid', 'high']
-    customer_types = ['new', 'recurring']
-    commodities = ['electronics', 'apparel']
-
-    # Create specific context instances
-    context1 = Context(season='high', customer_type='new', commodity='electronics')
-    context2 = Context(season='low', customer_type='recurring', commodity='apparel')
-    context3 = Context(season='high', customer_type='new', commodity='electronics') # Same as context1
+    # Using Enum members directly
+    context1 = Context(season=Season.HIGH, customer_type=CustomerType.NEW, commodity=Commodity.ELECTRONICS)
+    context2 = Context(season=Season.LOW, customer_type=CustomerType.RECURRING, commodity=Commodity.APPAREL)
+    context3 = Context(season=Season.HIGH, customer_type=CustomerType.NEW, commodity=Commodity.ELECTRONICS) # Same as context1
 
     print(f"Context 1: {context1}")
     print(f"Context 2: {context2}")
     print(f"Context 3 (repr): {repr(context3)}")
 
-    # Test equality
+    # Test equality (Enum members are singletons for a given value or are equal if values match)
     print(f"\nContext 1 equals Context 2? {context1 == context2}") # False
     print(f"Context 1 equals Context 3? {context1 == context3}") # True
 
@@ -98,22 +119,36 @@ if __name__ == '__main__':
     context_data[context2] = "Data for context 2"
 
     print(f"\nData for context1 (using context1 as key): {context_data[context1]}")
-    # context3 is equivalent to context1, so it should retrieve the same data
-    print(f"Data for context1 (using context3 as key): {context_data[context3]}")
+    print(f"Data for context1 (using context3 as key): {context_data[context3]}") # context3 is equal to context1
 
     print(f"\nHash of context1: {hash(context1)}")
     print(f"Hash of context2: {hash(context2)}")
     print(f"Hash of context3: {hash(context3)}") # Should be same as hash(context1)
 
     # Generate all possible contexts
-    all_possible_contexts_list = generate_all_domain_contexts(seasons, customer_types, commodities)
-    print(f"\nTotal number of unique context combinations: {len(all_possible_contexts_list)}")
-    print("List of all generated contexts:")
-    for ctx in all_possible_contexts_list:
-        print(ctx)
+    # To get all members of an Enum: list(MyEnum)
+    all_seasons = list(Season)
+    all_customer_types = list(CustomerType)
+    all_commodities = list(Commodity)
 
-    # Now, in your Agent class, you would pass this list:
-    # agent = YourAgent(all_possible_contexts=all_possible_contexts_list, ...)
-    # And when iterating:
-    # for ctx_object in self.all_contexts:
-    #     params = self.posterior_params[ctx_object]...
+    all_possible_contexts_list = generate_all_domain_contexts(all_seasons, all_customer_types, all_commodities)
+    print(f"\nTotal number of unique context combinations: {len(all_possible_contexts_list)}")
+    print("List of all generated contexts (first 5 for brevity):")
+    for i, ctx in enumerate(all_possible_contexts_list):
+        if i < 5:
+            print(f"  {repr(ctx)}") # Use repr for clarity here
+        elif i == 5:
+            print("  ...")
+            break
+
+    # Example of trying to create a Context with an invalid type
+    try:
+        invalid_context = Context(season="summer_string", customer_type=CustomerType.NEW, commodity=Commodity.APPAREL)
+    except TypeError as e:
+        print(f"\nError creating invalid context: {e}")
+
+    # Example of accessing Enum members
+    print(f"\nAccessing Enum members:")
+    print(f"Season.HIGH: {Season.HIGH}")
+    print(f"Season.HIGH.name: {Season.HIGH.name}")   # 'HIGH'
+    print(f"Season.HIGH.value: {Season.HIGH.value}") # 'high'

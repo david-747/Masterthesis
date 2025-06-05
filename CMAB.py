@@ -221,8 +221,8 @@ class CMAB:
                 current_time_t, observed_realized_context, chosen_price_vector_id, product_obj.product_id)
                 self.agent.record_action_taken(
                     time_t=current_time_t,
-                    context_obj=observed_realized_context,
-                    product_obj=product_obj,
+                    context=observed_realized_context,  # Changed 'context_obj' to 'context'
+                    product_id=product_obj,  # Changed 'product_obj' to 'product_id'
                     price_idx=chosen_price_vector_id,
                     action_id=feedback_id
                 )

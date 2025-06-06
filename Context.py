@@ -83,6 +83,10 @@ class Context:
                 f"Customer: {self.customer_type}, "
                 f"Commodity: {self.commodity_value})")
 
+    def to_safe_str(self) -> str:
+        """Returns a string representation safe for use in filenames or variable names."""
+        return f"season_{self.season}_customer_{self.customer_type}_commodity_{self.commodity_value}"
+
 # --- Helper function to generate all possible context combinations ---
 def generate_all_domain_contexts(possible_seasons: list[Season],
                                  possible_customer_types: list[CustomerType],

@@ -7,14 +7,24 @@ from Context import Context
 
 
 def solve_real_lp(
+        #agents current guess for the mean demand of each product at every price in every context
+        #comes from sampling from the internal model DelayedTSAgent
         sampled_theta_t: dict,
+        #represents average per-period budget for each resource
+        #calculated as total initial inventory of a resource divided by total number of time periods
         resource_constraints_c_j: np.ndarray,
+        #all possible situations the model can encounter
         all_contexts: list[Context],
+        #all products that can be sold
         all_products: list[Product],
+        #unique ids for each price vector
         all_price_indices: list[int],
+        #mapping id to actual price vector
         all_price_vectors_map: dict[int, PriceVector],
+        #matrix specifying how many units of resource j are consumed by one unit of product i
         resource_consumption_matrix_A_ij: np.ndarray,
         context_probabilities: dict | None,
+        #helper dict to quickly find correct row in the ressource consumption matrix given product id
         product_to_idx_map: dict
 ) -> dict:
     """
@@ -30,7 +40,9 @@ def solve_real_lp(
     # Solve an independent LP for each context
     for context in all_contexts:
         # 1. Create the LP problem
-        prob = pulp.LpProblem(f"RevenueMax_for_Context_{context}", pulp.LpMaximize)
+        #prob = pulp.LpProblem(f"RevenueMax_for_Context_{context}", pulp.LpMaximize)
+
+        prob = pulp.LpProblem(f"RevenueMax_for_Context_{context.to_safe_str()}", pulp.LpMaximize)
 
         # 2. Define decision variables (x_k in the paper)
         # The probability of choosing each price vector k

@@ -8,6 +8,8 @@ from DelayedTSAgent import DelayedTSAgent
 from MiscShipping import Product, PriceVector, Price
 from Context import Context, Season, CustomerType, CommodityValue, generate_all_domain_contexts
 
+# Import the real LP solver from its new file
+from LPSolver import solve_real_lp
 
 # --- Mock LP Solver ---
 # This is a placeholder for a real LP solver.
@@ -47,9 +49,10 @@ class Simulator:
     def __init__(self,
                  total_time_periods: int = 100,
                  num_products: int = 2,
-                 num_price_options_per_product: int = 2,  # e.g., low, high
-                 max_feedback_delay: int = 5,  # Max delay in periods for feedback
-                 num_resources: int = 1
+                 num_price_options_per_product: int = 2,
+                 max_feedback_delay: int = 5,
+                 num_resources: int = 1,
+                 use_real_lp: bool = True  # Add a flag to easily switch
                  ):
         print("Initializing Simulator...")
         self.total_time_periods = total_time_periods
@@ -89,10 +92,14 @@ class Simulator:
         print(f"Resource consumption matrix shape: {self.resource_consumption_matrix.shape}")
         print(f"Initial resource inventory: {self.initial_resource_inventory}")
 
+        # CHOOSE WHICH SOLVER TO USE
+        solver_function = solve_real_lp if use_real_lp else mock_lp_solver
+        solver_name = "REAL LP solver" if use_real_lp else "MOCK LP solver"
+
         # 6. Initialize CMAB
         self.cmab = CMAB(
             agent=self.agent,
-            lp_solver_function=mock_lp_solver,
+            lp_solver_function=solver_function, # Pass the chosen solver function
             all_products=self.all_products,
             all_price_vectors_map=self.all_price_vectors_map,
             resource_consumption_matrix=self.resource_consumption_matrix,
@@ -100,7 +107,7 @@ class Simulator:
             total_time_periods=self.total_time_periods,
             context_probabilities=None  # Not using explicit context probabilities in this simple sim
         )
-        print("Initialized CMAB.")
+        print(f"Initialized CMAB with {solver_name}.")
         print("-" * 30)
 
     def _create_products(self) -> list[Product]:
@@ -269,6 +276,7 @@ if __name__ == '__main__':
         num_products=sim_config["num_products"],
         num_price_options_per_product=sim_config["num_price_options_per_product"],
         max_feedback_delay=sim_config["max_feedback_delay"],
-        num_resources=sim_config["num_resources"]
+        num_resources=sim_config["num_resources"],
+        use_real_lp=True  # Set to True to use your new solver
     )
     simulator.run()

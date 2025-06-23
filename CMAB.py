@@ -217,6 +217,9 @@ class CMAB:
             for product_obj in self.all_products:
                 # This unique ID will be used by the simulator to report feedback for this specific product
                 # resulting from this specific action (t, context, price_vector_id).
+                #TODO think about changing chosen price vector id to price itself. Idea is to learn product/price \
+                # correlation not product/price vector.
+
                 feedback_id = (
                 current_time_t, observed_realized_context, chosen_price_vector_id, product_obj.product_id)
                 self.agent.record_action_taken(

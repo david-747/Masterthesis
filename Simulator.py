@@ -190,6 +190,14 @@ class Simulator:
 
         return random.random() < sale_prob
 
+    #simulator that runs for total_time_periods
+    #Step 1: first, pending feedback is checked, where the queue is iterated from the front (i.e. oldest first)
+    #as feedback list ist ordered, the loop terminates the moment current_time_t is greater than arrival_t
+    #all relevant feedback to process is passed to the CMAB which then passes it to the agent to get a better prior
+    # for the beta distribution
+    #Step 2: cmab is called to determine the pricing policy for the current period
+    #Step 3: observed context is "observed", for now just randomly chosen from all contexts
+    #Step 4:
     def run(self):
         print(f"\n--- Starting Simulation for {self.total_time_periods} periods ---")
         total_sales = 0

@@ -197,7 +197,8 @@ class Simulator:
     # for the beta distribution
     #Step 2: cmab is called to determine the pricing policy for the current period
     #Step 3: observed context is "observed", for now just randomly chosen from all contexts
-    #Step 4:
+    #Step 4: cmab selects and action (i.e. price vector) and passes vector id + prepared product_feedback map
+    #Step 5: consequences of chosen action are simulated
     def run(self):
         print(f"\n--- Starting Simulation for {self.total_time_periods} periods ---")
         total_sales = 0
@@ -251,10 +252,15 @@ class Simulator:
                 # 5. Simulate Demand and Queue Feedback
                 if product_specific_feedback_ids_map:
                     for product_obj, feedback_id in product_specific_feedback_ids_map.items():
+
+                        #NOTE: demand is simulated with calling below function
                         success = self._simulate_demand(product_obj, chosen_price_vector_id, chosen_pv_object)
                         if success:
                             total_sales += 1
 
+                        #NOTE: this is simulating the feedback delay. It can be done after the simulated demand \
+                        # as simplified logic is: constumer does purchase decision with delay + information gets to \
+                        # system with delay
                         feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
 
                         # Add to deque, maintaining sorted order by arrival_time

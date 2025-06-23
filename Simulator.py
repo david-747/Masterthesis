@@ -110,12 +110,14 @@ class Simulator:
         print(f"Initialized CMAB with {solver_name}.")
         print("-" * 30)
 
+    #currently creates "products" from the number of products specified in the config
     def _create_products(self) -> list[Product]:
         products = []
         for i in range(self.num_products):
             products.append(Product(product_id=f"P{i + 1:03}", name=f"Product {i + 1}"))
         return products
 
+    #currently creates "price_vectors" from the number of products specified in the config and the number of price options specified in the config
     def _create_price_vectors(self, products: list[Product]) -> tuple[dict[int, PriceVector], list[int]]:
         price_vectors_map = {}
         # Create self.num_price_options distinct price vectors
@@ -137,6 +139,7 @@ class Simulator:
             raise Exception("Price indices are empty despite num_price_options > 0")
         return price_vectors_map, price_indices
 
+    #currently creates all contexts from the context enum
     def _create_contexts(self) -> list[Context]:
         # Using all enum members to generate all combinations
         all_seasons = list(Season)
@@ -144,6 +147,7 @@ class Simulator:
         all_commodity_values = list(CommodityValue)
         return generate_all_domain_contexts(all_seasons, all_customer_types, all_commodity_values)
 
+    #idea is to have an array as inventory and a matrix for resource consumption
     def _initialize_resources(self) -> tuple[np.ndarray, np.ndarray]:
         # Shape: (num_products, num_resources)
         # Simple: each product consumes 1 unit of each resource
@@ -156,6 +160,12 @@ class Simulator:
                                                  self.total_time_periods * len(self.all_products) * 2))  # ensure enough
         return resource_consumption_matrix, initial_resource_inventory
 
+
+    #currently simulates a very simple demand model, assumption is, that there is a base demand with an added price effect and product effect
+    #higher price vector ID means higher price, so lower chance of sale
+    #currently there is a product effect which simulates a certain preference for one product over another
+    #this will very likely be ommited in final build
+    #output is a boolean indicating if the sale was successful or not
     def _simulate_demand(self, product: Product, chosen_price_vector_id: int | None,
                          chosen_price_vector: PriceVector | None) -> bool:
         """

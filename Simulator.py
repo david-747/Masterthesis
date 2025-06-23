@@ -1,6 +1,8 @@
 import random
 import numpy as np
 from collections import deque
+import matplotlib.pyplot as plt
+from scipy.stats import beta as beta_dist
 
 # Assuming your files are in the same directory or accessible in PYTHONPATH
 from CMAB import CMAB
@@ -336,6 +338,72 @@ class Simulator:
         print(f"Total sales simulated: {total_sales}")
         print(f"Pending feedback items at end: {len(self.pending_feedback)}")
 
+    # Place this method inside the Simulator class, for example, after the run() method.
+    def visualize_agent_beliefs(self, context_to_show, product_to_show):
+        """
+        Visualizes the agent's learned Beta distributions for a specific
+        product and context, comparing all available price vectors.
+
+        Args:
+            context_to_show (Context): The specific context to visualize beliefs for.
+            product_to_show (Product): The specific product (container type) to visualize.
+        """
+        print("\n--- Visualizing Agent Beliefs ---")
+        print(f"Product: {product_to_show.name} ({product_to_show.product_id})")
+        print(f"Context: {context_to_show}")
+        print("------------------------------------")
+
+        plt.figure(figsize=(12, 7))
+
+        # Create a smooth x-axis for the probability values from 0 to 1
+        x = np.linspace(0, 1, 500)
+
+        # Retrieve the posterior parameters (alpha, beta) for each price vector
+        for pv_id, pv_object in self.all_price_vectors_map.items():
+
+            # This step assumes your agent stores posteriors in a dictionary
+            # keyed by (context, product_id, price_vector_id).
+            # We use .get() to provide a default prior (1,1) if a combo was never tried.
+            try:
+                # NOTE: The exact way to get parameters depends on your Agent's implementation.
+                # We assume it has a dictionary called `posterior_params`.
+                # The key is a tuple identifying the specific arm of the bandit.
+                context_hash = hash(context_to_show)
+                product_id = product_to_show.product_id
+
+                alpha, beta = self.agent.posterior_params.get(
+                    (context_hash, product_id, pv_id),
+                    (1, 1)  # Default prior if this arm was never pulled
+                )
+
+                # =============================================================
+                # VVV ADD THIS DIAGNOSTIC PRINT STATEMENT VVV
+                print(f"  - Plotting for {pv_object.name}: Found alpha={alpha}, beta={beta}")
+                # =============================================================
+
+            except AttributeError:
+                print("Error: Could not find 'posterior_params' on the agent.")
+                print("Please ensure your DelayedTSAgent stores posteriors in a dictionary with this name.")
+                return
+
+            # Calculate the Probability Density Function (PDF) for the Beta distribution
+            y = beta_dist.pdf(x, alpha, beta)
+
+            # Calculate the mean of the distribution for context
+            mean_prob = alpha / (alpha + beta)
+
+            # Plot the distribution
+            plt.plot(x, y, label=f'{pv_object.name} | α={alpha}, β={beta} | Mean={mean_prob:.2f}')
+
+        plt.title(f'Agent Beliefs for Product "{product_to_show.name}" in Context "{context_to_show}"')
+        plt.xlabel("Purchase Probability (θ)")
+        plt.ylabel("Probability Density")
+        plt.legend(title="Price Vector | Parameters | Expected Value")
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.xlim(0, 1)
+        plt.ylim(bottom=0)
+        plt.show()
+
 
 # --- Main execution ---
 if __name__ == '__main__':
@@ -357,3 +425,22 @@ if __name__ == '__main__':
         use_real_lp=True  # Set to True to use your new solver
     )
     simulator.run()
+
+    # --- After the simulation, visualize the results ---
+    # You can pick any context and product you want to inspect.
+    # Here, we'll just pick the first ones from the lists for demonstration.
+    if simulator.all_contexts and simulator.all_products:
+        context_to_inspect = simulator.all_contexts[0]
+        product_to_inspect = simulator.all_products[0]  # e.g., '20ft Standard Dry' (TEU)
+
+        simulator.visualize_agent_beliefs(
+            context_to_show=context_to_inspect,
+            product_to_show=product_to_inspect
+        )
+
+        # You could even visualize another product for comparison
+        product_to_inspect_2 = simulator.all_products[1]  # e.g., '40ft Standard Dry' (FEU)
+        simulator.visualize_agent_beliefs(
+            context_to_show=context_to_inspect,
+            product_to_show=product_to_inspect_2
+        )

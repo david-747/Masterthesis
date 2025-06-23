@@ -14,6 +14,7 @@ from LPSolver import solve_real_lp
 # --- Mock LP Solver ---
 # This is a placeholder for a real LP solver.
 # It needs to return a policy: {context_obj: {price_vector_id: probability_x_ksi_k}}
+#NOTE: mock solver included for testing but should be ommited in final build
 def mock_lp_solver(
         sampled_theta_t,
         resource_constraints_c_j,
@@ -112,31 +113,82 @@ class Simulator:
 
     #currently creates "products" from the number of products specified in the config
     def _create_products(self) -> list[Product]:
+
+        print("Creating specific container types...")
+
+        # Define the standard container types (our "products")
+        # You can easily add or remove types from this list.
+        container_types = [
+            {'id': 'TEU', 'name': '20ft Standard Dry'},
+            {'id': 'FEU', 'name': '40ft Standard Dry'},
+            {'id': 'HC', 'name': '40ft High Cube'},
+            {'id': 'REEF', 'name': '40ft Reefer (Refrigerated)'}
+        ]
+
         products = []
-        for i in range(self.num_products):
-            products.append(Product(product_id=f"P{i + 1:03}", name=f"Product {i + 1}"))
+        for container in container_types:
+            products.append(Product(product_id=container['id'], name=container['name']))
+
+            # The number of products is now determined by the length of the list above
+        self.num_products = len(products)
+
         return products
 
     #currently creates "price_vectors" from the number of products specified in the config and the number of price options specified in the config
     def _create_price_vectors(self, products: list[Product]) -> tuple[dict[int, PriceVector], list[int]]:
         price_vectors_map = {}
-        # Create self.num_price_options distinct price vectors
-        # Each vector will assign a price to all products
+
+        # 1. Define realistic base prices for each container type (product_id)
+        # These are your internal reference or "standard" prices.
+        base_container_prices = {
+            'TEU': 2500.0,  # 20ft Standard
+            'FEU': 4500.0,  # 40ft Standard
+            'HC': 4800.0,  # 40ft High Cube
+            'REEF': 8000.0  # 40ft Reefer has a premium price
+        }
+
+        # 2. Define the pricing levels/strategies you want the agent to explore.
+        # These multipliers will be applied to the base prices.
+        # The number of levels is determined by 'self.num_price_options' from the config.
+        # Example for num_price_options = 3: [Aggressive, Standard, Premium]
+        price_level_multipliers = {
+            0: {'name': 'Aggressive', 'multiplier': 0.85},  # 15% discount
+            1: {'name': 'Standard', 'multiplier': 1.0},  # Base price
+            2: {'name': 'Premium', 'multiplier': 1.20}  # 20% premium
+            # Add more levels if self.num_price_options is higher
+        }
+
+        # Ensure we have enough defined levels for the configuration
+        if self.num_price_options > len(price_level_multipliers):
+            raise ValueError(
+                f"num_price_options is {self.num_price_options}, but only {len(price_level_multipliers)} price levels are defined.")
+
+        # 3. Create a price vector for each pricing level
         for i in range(self.num_price_options):
-            pv_id = i  # Price vector ID
-            pv_name = f"PV_{i}"
-            # Vary price based on pv_id (e.g., lower id = lower price)
-            base_price = 100.0 + i * 50.0
+            level_info = price_level_multipliers[i]
+            pv_id = i
+            pv_name = f"PV_{i}_{level_info['name']}"
+            multiplier = level_info['multiplier']
+
             price_vector = PriceVector(vector_id=pv_id, name=pv_name)
-            for p_idx, prod in enumerate(products):
-                # Make product prices slightly different within the same vector
-                product_price_amount = base_price + p_idx * 10.0
-                price_vector.set_price(prod, Price(amount=product_price_amount, currency="USD"))
+
+            # For this price vector, calculate the price for EACH container type
+            for prod in products:
+                if prod.product_id not in base_container_prices:
+                    print(f"Warning: Product ID '{prod.product_id}' not found in base_container_prices map. Skipping.")
+                    continue
+
+                base_price = base_container_prices[prod.product_id]
+                final_price = base_price * multiplier
+
+                price_vector.set_price(prod, Price(amount=final_price, currency="USD"))
+
             price_vectors_map[pv_id] = price_vector
 
         price_indices = sorted(list(price_vectors_map.keys()))
         if not price_indices and self.num_price_options > 0:
             raise Exception("Price indices are empty despite num_price_options > 0")
+
         return price_vectors_map, price_indices
 
     #currently creates all contexts from the context enum
@@ -179,6 +231,7 @@ class Simulator:
         # Product P001 might be more popular than P002 etc.
         base_sale_prob = 0.6
         price_effect = (self.num_price_options - 1 - chosen_price_vector_id) * 0.1  # Higher ID = lower prob
+        #NOTE: product effect included but may be ommited in final build
         product_effect = 0.0
         if product.product_id == "P001":
             product_effect = 0.1

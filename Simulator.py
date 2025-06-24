@@ -279,7 +279,8 @@ class Simulator:
 
             if feedback_to_process_this_period:
                 print(f"  Processing {len(feedback_to_process_this_period)} feedback items for the agent.")
-                self.cmab.process_feedback_for_agent(feedback_to_process_this_period)
+                # Pass the current time to the method
+                self.cmab.process_feedback_for_agent(feedback_to_process_this_period, self.current_time_t)
             else:
                 print("  No feedback to process this period.")
 
@@ -343,10 +344,6 @@ class Simulator:
         """
         Visualizes the agent's learned Beta distributions for a specific
         product and context, comparing all available price vectors.
-
-        Args:
-            context_to_show (Context): The specific context to visualize beliefs for.
-            product_to_show (Product): The specific product (container type) to visualize.
         """
         print("\n--- Visualizing Agent Beliefs ---")
         print(f"Product: {product_to_show.name} ({product_to_show.product_id})")
@@ -355,47 +352,33 @@ class Simulator:
 
         plt.figure(figsize=(12, 7))
 
-        # Create a smooth x-axis for the probability values from 0 to 1
         x = np.linspace(0, 1, 500)
 
-        # Retrieve the posterior parameters (alpha, beta) for each price vector
         for pv_id, pv_object in self.all_price_vectors_map.items():
-
-            # This step assumes your agent stores posteriors in a dictionary
-            # keyed by (context, product_id, price_vector_id).
-            # We use .get() to provide a default prior (1,1) if a combo was never tried.
             try:
-                # NOTE: The exact way to get parameters depends on your Agent's implementation.
-                # We assume it has a dictionary called `posterior_params`.
-                # The key is a tuple identifying the specific arm of the bandit.
-                context_hash = hash(context_to_show)
+                # --- THIS IS THE FIX ---
+                # We must use the same stable key here that the agent uses internally.
+                context_key = context_to_show.get_key()
                 product_id = product_to_show.product_id
 
-                alpha, beta = self.agent.posterior_params.get(
-                    (context_hash, product_id, pv_id),
-                    (1, 1)  # Default prior if this arm was never pulled
-                )
+                # The key we look up must match the key used in agent.update_posterior()
+                lookup_key = (context_key, product_id, pv_id)
 
-                # =============================================================
-                # VVV ADD THIS DIAGNOSTIC PRINT STATEMENT VVV
+                alpha, beta = self.agent.posterior_params.get(lookup_key, (1, 1))
+
+                # This is the diagnostic print you can remove after it works.
                 print(f"  - Plotting for {pv_object.name}: Found alpha={alpha}, beta={beta}")
-                # =============================================================
 
             except AttributeError:
                 print("Error: Could not find 'posterior_params' on the agent.")
-                print("Please ensure your DelayedTSAgent stores posteriors in a dictionary with this name.")
                 return
 
-            # Calculate the Probability Density Function (PDF) for the Beta distribution
             y = beta_dist.pdf(x, alpha, beta)
-
-            # Calculate the mean of the distribution for context
             mean_prob = alpha / (alpha + beta)
 
-            # Plot the distribution
-            plt.plot(x, y, label=f'{pv_object.name} | α={alpha}, β={beta} | Mean={mean_prob:.2f}')
+            plt.plot(x, y, label=f'{pv_object.name} | α={alpha:.2f}, β={beta:.2f} | Mean={mean_prob:.2f}')
 
-        plt.title(f'Agent Beliefs for Product "{product_to_show.name}" in Context "{context_to_show}"')
+        plt.title(f'Agent Beliefs for Product "{product_to_show.name}"\nin Context "{context_to_show}"')
         plt.xlabel("Purchase Probability (θ)")
         plt.ylabel("Probability Density")
         plt.legend(title="Price Vector | Parameters | Expected Value")
@@ -403,6 +386,71 @@ class Simulator:
         plt.xlim(0, 1)
         plt.ylim(bottom=0)
         plt.show()
+
+    def visualize_all_learnings_heatmap(self):
+        """
+        Generates a set of heatmaps to visualize the agent's learned mean
+        purchase probability for every product-context-price combination.
+        """
+        print("\n--- Visualizing All Learned Beliefs (Heatmap Summary) ---")
+
+        # Get the labels for the axes from our simulation setup
+        # Ensure consistent ordering
+        contexts = sorted(self.all_contexts, key=lambda c: c.get_key())
+        price_vectors = sorted(self.all_price_vectors_map.values(), key=lambda pv: pv.vector_id)
+
+        context_labels = [c.get_key() for c in contexts]
+        price_labels = [pv.name for pv in price_vectors]
+
+        # Generate one heatmap for each product
+        for product_obj in self.all_products:
+            # Create a data matrix to hold the mean probabilities for this product
+            # Shape: (num_contexts, num_price_vectors)
+            data_matrix = np.zeros((len(contexts), len(price_vectors)))
+
+            # Populate the matrix with the agent's learned means
+            for i, context in enumerate(contexts):
+                for j, pv in enumerate(price_vectors):
+                    context_key = context.get_key()
+                    product_id = product_obj.product_id
+                    pv_id = pv.vector_id
+
+                    # The key to look up beliefs in the agent's dictionary
+                    lookup_key = (context_key, product_id, pv_id)
+
+                    alpha, beta = self.agent.posterior_params.get(lookup_key, (1, 1))
+
+                    # Calculate the mean of the Beta(alpha, beta) distribution
+                    mean_prob = alpha / (alpha + beta)
+                    data_matrix[i, j] = mean_prob
+
+            # Now, create the plot for the current product
+            fig, ax = plt.subplots(figsize=(10, 8))
+            im = ax.imshow(data_matrix, cmap="viridis", vmin=0, vmax=1)
+
+            # Set up the ticks and labels for the axes
+            ax.set_xticks(np.arange(len(price_labels)))
+            ax.set_yticks(np.arange(len(context_labels)))
+            ax.set_xticklabels(price_labels)
+            ax.set_yticklabels(context_labels)
+
+            # Rotate the x-axis labels to prevent them from overlapping
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+            # Loop over data dimensions and create text annotations.
+            for i in range(len(context_labels)):
+                for j in range(len(price_labels)):
+                    mean_val = data_matrix[i, j]
+                    # Change text color to white for dark backgrounds
+                    text_color = "w" if mean_val < 0.5 else "k"
+                    ax.text(j, i, f"{mean_val:.2f}", ha="center", va="center", color=text_color)
+
+            # Add a colorbar and title
+            fig.colorbar(im, ax=ax, label="Mean Purchase Probability")
+            ax.set_title(f"Agent's Learned Mean Purchase Probability for: {product_obj.name}")
+
+            fig.tight_layout()
+            plt.show()
 
 
 # --- Main execution ---
@@ -429,6 +477,11 @@ if __name__ == '__main__':
     # --- After the simulation, visualize the results ---
     # You can pick any context and product you want to inspect.
     # Here, we'll just pick the first ones from the lists for demonstration.
+
+    # --- After the simulation, visualize the new summary heatmap ---
+    simulator.visualize_all_learnings_heatmap()
+
+    '''
     if simulator.all_contexts and simulator.all_products:
         context_to_inspect = simulator.all_contexts[0]
         product_to_inspect = simulator.all_products[0]  # e.g., '20ft Standard Dry' (TEU)
@@ -444,3 +497,4 @@ if __name__ == '__main__':
             context_to_show=context_to_inspect,
             product_to_show=product_to_inspect_2
         )
+        '''

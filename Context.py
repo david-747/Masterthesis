@@ -87,6 +87,13 @@ class Context:
         """Returns a string representation safe for use in filenames or variable names."""
         return f"season_{self.season}_customer_{self.customer_type}_commodity_{self.commodity_value}"
 
+    def get_key(self) -> str:
+        """
+        Generates a stable, string-based key for this context object.
+        Example: "low-new-high"
+        """
+        return f"{self.season.value}-{self.customer_type.value}-{self.commodity_value.value}"
+
 # --- Helper function to generate all possible context combinations ---
 def generate_all_domain_contexts(possible_seasons: list[Season],
                                  possible_customer_types: list[CustomerType],

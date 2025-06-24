@@ -1,111 +1,88 @@
-
-from collections import defaultdict
 import numpy as np
+# Assuming your custom classes are in these files, adjust if necessary
+from Context import Context
+from MiscShipping import Product
 
-#DTSA is the learner of of the model
+
 class DelayedTSAgent:
-    #assume bernoulli demand -> for each combination of context, product and price
-    #DTSA maintains alpha and beta parameters of a Beta distribution
-    def __init__(self, all_possible_contexts, all_possible_products, all_possible_price_indices, demand_model_type='bernoulli'):
+    """
+    A Thompson Sampling agent designed to handle delayed feedback.
+
+    This agent maintains a Beta distribution (defined by alpha and beta parameters)
+    for each "arm" of the contextual multi-armed bandit. An arm is a unique
+    combination of (context, product, price_vector).
+    """
+
+    def __init__(self,
+                 all_possible_contexts: list[Context],
+                 all_possible_products: list[Product],
+                 all_possible_price_indices: list[int]):
+        """
+        Initializes the agent.
+        """
         self.all_contexts = all_possible_contexts
         self.all_products = all_possible_products
-        self.all_price_indices = all_possible_price_indices # e.g., list(range(K))
-        self.demand_model_type = demand_model_type
+        self.all_price_indices = all_possible_price_indices
 
-        # This correctly initializes posteriors to priors on first access
-        self.posterior_params = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'alpha': 1, 'beta': 1})))
+        # This dictionary will store the agent's beliefs.
+        # Key: A tuple (context_hash, product_id, price_vector_id)
+        # Value: A tuple (alpha, beta)
+        self.posterior_params = {}
 
-        # --- New for delays ---
-        # Stores information about actions for which feedback is pending
-        # Key: unique_action_id (e.g., (time_taken, context_hash, action_hash))
-        # Value: {'product_id': ..., 'price_idx': ..., 'context': ...}
-        self.pending_actions_info = {}
-
-    #samples mean demand (probability of sale in case of bernoulli demand) from the current posterior
-    #(Beta distribution in case of bernoulli demand) for all possible context-product-price combinations
-    #this sampled demand is then used by the CMAB class
-    def get_sampled_theta(self):
+    def sample_theta_for_each_arm(self) -> dict:
         """
-        Samples a complete set of mean demand rates theta from the *current* posterior
-        for ALL defined combinations of context, product, and price_index.
+        Performs the Thompson Sampling step.
+
+        This version creates a NESTED dictionary to match the format expected
+        by the LP Solver: {context: {product: {price_id: probability}}}
         """
-        # The defaultdict for sampled_theta is for convenient construction of the output dict
-        sampled_theta = defaultdict(lambda: defaultdict(dict))
+        sampled_theta_nested = {}
 
-        if self.demand_model_type == 'bernoulli':
-            for ctx_key in self.all_contexts:  # Iterate over ALL defined contexts
-                for prod_id in self.all_products:  # Iterate over ALL defined products
-                    # sampled_theta[ctx_key][prod_id] will be a dict to store p_idx -> sampled_demand
-                    for p_idx in self.all_price_indices:  # Iterate over ALL defined price indices
+        for context in self.all_contexts:
+            # Use the actual Context object as the first-level key
+            sampled_theta_nested[context] = {}
+            for product in self.all_products:
+                # Use the actual Product object as the second-level key
+                sampled_theta_nested[context][product] = {}
 
-                        # Accessing self.posterior_params here:
-                        # If this (ctx_key, prod_id, p_idx) combination has never been
-                        # accessed/updated before, the defaultdict structure will ensure
-                        # params becomes {'alpha': 1, 'beta': 1} (the prior).
-                        # If it has been updated, params will hold the updated alpha/beta.
-                        params = self.posterior_params[ctx_key][prod_id][p_idx]
+        # Now that the nested structure is initialized, fill it with samples.
+        for context in self.all_contexts:
+            context_key_for_storage = context.get_key()  # This is our stable string key for internal storage
 
-                        sampled_mean_demand = np.random.beta(params['alpha'], params['beta'])
+            for product in self.all_products:
+                product_id_for_storage = product.product_id
 
-                        # Store the sampled demand for this specific combination
-                        sampled_theta[ctx_key][prod_id][p_idx] = sampled_mean_demand
+                for pv_index in self.all_price_indices:
+                    # Use the consistent tuple key to get our internal belief
+                    internal_key = (context_key_for_storage, product_id_for_storage, pv_index)
+                    alpha, beta = self.posterior_params.get(internal_key, (1, 1))
 
-        # Add elif blocks for other demand_model_types if necessary
+                    # Sample the belief
+                    sample = np.random.beta(alpha, beta)
 
-        return sampled_theta
+                    # Populate the nested dictionary using the OBJECTS as keys
+                    sampled_theta_nested[context][product][pv_index] = sample
 
+        return sampled_theta_nested
 
-    #when CMAB decides on an action (i.e. a price vector to offer), it tells the agent via this method
-    #the agent stores information about this action in self.pending_actions_info
-    #this is crucial because feedback on this action might arrive later
-    def record_action_taken(self, time_t, context, product_id, price_idx, action_id):
+    def update_posterior(self, context: Context, product: Product, price_vector_id: int, success: bool):
         """
-        Records that an action was taken, so we know its details when feedback arrives.
-        action_id could be simply time_t if only one action per time_t, or more complex.
+        Updates the posterior distribution for a given arm based on feedback.
+        This is the core learning mechanism.
         """
-        # Store details needed to update the correct posterior when feedback arrives
-        self.pending_actions_info[action_id] = {
-            'time_taken': time_t,
-            'context': context, # Store the actual context object or its key
-            'product_id': product_id,
-            'price_idx': price_idx
-        }
+        # Construct the key in the EXACT SAME WAY as in the sampling method
+        # to ensure consistency.
+        context_key = context.get_key()  # Use the stable key
+        key = (context_key, product.product_id, price_vector_id)
 
+        # Retrieve the current parameters for this key, or the default prior (1, 1).
+        alpha, beta = self.posterior_params.get(key, (1, 1))
 
-    #when feedback (in case of of bernoulli demand -> sale/no sale) arrives for past action, CMAB passes this
-    #to the agent using this method
-    #agent looks up action_id in pending_actions_info to retrieve context, product and price associated with
-    #feedback
-    #the agent then updates alpha and beta parameters for that specific combination, refining the demand model
-    def process_arrived_feedback(self, action_id, observed_success, observed_trials=1):
-        """
-        Called when feedback for a previously taken action arrives.
-        Updates the posterior for the specific (context, product, price) of that action.
-        """
-        if action_id not in self.pending_actions_info:
-            print(f"Warning: Received feedback for unknown action_id {action_id}")
-            return
-
-        action_details = self.pending_actions_info.pop(action_id) # Remove from pending
-        ctx_key = action_details['context'] # Or how you key contexts
-        prod_id = action_details['product_id']
-        p_idx = action_details['price_idx']
-
-        #if only binary feedback -> alpha/beta + 1 is sufficient
-        if self.demand_model_type == 'bernoulli':
-            is_sale = observed_success > 0
-            current_params = self.posterior_params[ctx_key][prod_id][p_idx]
-            if is_sale:
-                current_params['alpha'] += 1
-            else:
-                current_params['beta'] += 1
-
-        #in case of having multiple observing with arriving feeback
-        '''
+        # Update the parameters based on the feedback outcome.
+        if success:
+            alpha += 1  # Increment alpha for a success (sale)
         else:
+            beta += 1  # Increment beta for a failure (no sale)
 
-            current_params = self.posterior_params[ctx_key][prod_id][p_idx]
-
-            current_params['alpha'] += observed_success
-            current_params['beta'] += observed_trials - observed_success
-'''
+        # Store the new parameters back into our beliefs dictionary.
+        self.posterior_params[key] = (alpha, beta)

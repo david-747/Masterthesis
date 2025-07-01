@@ -24,7 +24,8 @@ class CMAB:
                  resource_consumption_matrix: np.ndarray,  # Shape: (num_products, num_resources)
                  initial_resource_inventory: np.ndarray,  # Shape: (num_resources,)
                  total_time_periods: int,
-                 context_probabilities: dict['DomainContext', float] = None):
+                 context_probabilities: dict['DomainContext', float] = None,
+                 use_ts_update: bool = False):
         """
         Orchestrates a Contextual Multi-Armed Bandit strategy with delayed feedback,
         structurally following Ferreira et al. (2018) Algorithm 4,
@@ -54,6 +55,10 @@ class CMAB:
         self.agent = agent
         self.lp_solver = lp_solver_function
 
+        # --- 2. ADD THIS LINE TO SAVE THE ARGUMENT AS AN ATTRIBUTE ---
+        self.use_ts_update = use_ts_update
+        # ---
+
         self.all_products = all_products
         # Create a mapping from product_id to product_idx for the resource_consumption_matrix
         self.product_to_idx_map = {product.product_id: i for i, product in enumerate(all_products)}
@@ -64,8 +69,9 @@ class CMAB:
         self.resource_consumption_matrix_A_ij = resource_consumption_matrix
         self.initial_resource_inventory_I_j = initial_resource_inventory
         self.total_time_periods_T = total_time_periods
-        # c_j = I_j / T as per Ferreira et al. (2018) (Section 2.2, used in LP)
-        self.resource_constraints_c_j = self.initial_resource_inventory_I_j / self.total_time_periods_T
+
+        # TS-fixed: c_j = I_j / T as per Ferreira et al. (2018) (Section 2.2, used in LP)
+        #self.resource_constraints_c_j = self.initial_resource_inventory_I_j / self.total_time_periods_T
 
         self.context_probabilities = context_probabilities
         if self.context_probabilities:
@@ -125,7 +131,9 @@ class CMAB:
     #                          randomized pricing policy
     #                          this policy is stored in self.current_lp_solution_x_ksi_k and looks like:
     #                          {context_object: {price_vector_id: probability_of_offering_this_price_vector}}
-    def determine_pricing_policy_for_period(self):
+    def determine_pricing_policy_for_period(self,
+                                              current_time_t: int,
+                                              current_inventory: np.ndarray):
         """
         Performs Steps 1 and 2 of Algorithm 4 (delay-adapted):
         1. Sample theta(t) from the agent's current posteriors.
@@ -137,6 +145,21 @@ class CMAB:
         sampled_theta_t = self.agent.sample_theta_for_each_arm()
         # Expected structure: {context_obj: {product_obj: {price_vector_id: sampled_mean_demand}}}
 
+        # --- 4. ADDED: Dynamic Resource Constraint Calculation ---
+        if self.use_ts_update:
+            # This is the TS-Update logic from Algorithm 2 [cite: 297]
+            remaining_time = self.total_time_periods_T - current_time_t
+            if remaining_time > 0:
+                # Ensure inventory isn't negative before division
+                safe_inventory = np.maximum(current_inventory, 0)
+                resource_constraints_c_j = safe_inventory / remaining_time
+            else:
+                resource_constraints_c_j = np.zeros_like(current_inventory)
+        else:
+            # This is the original TS-Fixed logic from Algorithm 1 [cite: 220]
+            resource_constraints_c_j = self.initial_resource_inventory_I_j / self.total_time_periods_T
+
+
         # Step 2: Optimize Prices Given Sampled Demand (Solve LP)
         # The LP solver will use sampled_theta_t to get d_ik(ksi|theta(t)).
         # It will use all_price_vectors_map to get p_ik (actual price amounts).
@@ -144,7 +167,7 @@ class CMAB:
         # It will use self.resource_constraints_c_j for c_j.
         self.current_lp_solution_x_ksi_k = self.lp_solver(
             sampled_theta_t=sampled_theta_t,
-            resource_constraints_c_j=self.resource_constraints_c_j,
+            resource_constraints_c_j=resource_constraints_c_j,
             all_contexts=self.agent.all_contexts,
             all_products=self.all_products,
             all_price_indices=self.agent.all_price_indices,
@@ -242,7 +265,7 @@ class CMAB:
                 feedback_id = f"t{current_time_t}-{context_key}-{product_obj.product_id}-{chosen_price_vector_id}"
 
                 # --- ADD THIS DIAGNOSTIC LINE ---
-                print(f"DEBUG (t={current_time_t}): Adding key to registry: {repr(feedback_id)}")
+                #print(f"DEBUG (t={current_time_t}): Adding key to registry: {repr(feedback_id)}")
 
                 # *** THIS IS THE CORE FIX ***
                 # Store the full context of the action in our registry, keyed by the unique ID.

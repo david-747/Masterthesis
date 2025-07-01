@@ -1,3 +1,6 @@
+import csv
+from datetime import datetime
+import os
 import random
 import numpy as np
 from collections import deque
@@ -55,7 +58,8 @@ class Simulator:
                  num_price_options_per_product: int = 2,
                  max_feedback_delay: int = 5,
                  num_resources: int = 1,
-                 use_real_lp: bool = True  # Add a flag to easily switch
+                 use_real_lp: bool = True,  # Add a flag to easily switch
+                 use_ts_update: bool = False
                  ):
         print("Initializing Simulator...")
         self.total_time_periods = total_time_periods
@@ -98,6 +102,10 @@ class Simulator:
         print(f"Resource consumption matrix shape: {self.resource_consumption_matrix.shape}")
         print(f"Initial resource inventory: {self.initial_resource_inventory}")
 
+        # --- ADD THIS LINE ---
+        self.current_inventory = np.copy(self.initial_resource_inventory)
+        # ---
+
         # CHOOSE WHICH SOLVER TO USE
         solver_function = solve_real_lp if use_real_lp else mock_lp_solver
         solver_name = "REAL LP solver" if use_real_lp else "MOCK LP solver"
@@ -111,7 +119,8 @@ class Simulator:
             resource_consumption_matrix=self.resource_consumption_matrix,
             initial_resource_inventory=self.initial_resource_inventory,
             total_time_periods=self.total_time_periods,
-            context_probabilities=None  # Not using explicit context probabilities in this simple sim
+            context_probabilities=None,  # Not using explicit context probabilities in this simple sim
+            use_ts_update=use_ts_update  # <-- Use the argument passed to Simulator
         )
         print(f"Initialized CMAB with {solver_name}.")
         print("-" * 30)
@@ -206,6 +215,7 @@ class Simulator:
 
     #idea is to have an array as inventory and a matrix for resource consumption
     def _initialize_resources(self) -> tuple[np.ndarray, np.ndarray]:
+        '''
         # Shape: (num_products, num_resources)
         # Simple: each product consumes 1 unit of each resource
         resource_consumption_matrix = np.ones((len(self.all_products), self.num_resources))
@@ -215,6 +225,30 @@ class Simulator:
         initial_resource_inventory = np.full((self.num_resources,),
                                              float(
                                                  self.total_time_periods * len(self.all_products) * 2))  # ensure enough
+        return resource_consumption_matrix, initial_resource_inventory
+        '''
+        """
+            Initializes a realistic, scarce inventory and consumption matrix.
+            The single resource is "TEU slots" on a ship.
+            """
+        # 1. Define the consumption of "TEU slots" for each product type.
+        # The order must match the order in self.all_products.
+        # Our order is: 'TEU', 'FEU', 'HC', 'REEF'
+        consumption_per_product = {
+            'TEU': 1,  # A 20ft container takes 1 TEU slot
+            'FEU': 2,  # A 40ft container takes 2 TEU slots
+            'HC': 2,  # A 40ft High Cube takes 2 TEU slots
+            'REEF': 2  # A 40ft Reefer takes 2 TEU slots
+        }
+
+        # Create the consumption matrix based on the product order
+        resource_consumption_list = [consumption_per_product[p.product_id] for p in self.all_products]
+        resource_consumption_matrix = np.array(resource_consumption_list).reshape((self.num_products, 1))
+
+        # 2. Set the initial inventory based on your realistic constraints.
+        # Total capacity for spot customers is 450 TEU slots.
+        initial_resource_inventory = np.array([450.0])
+
         return resource_consumption_matrix, initial_resource_inventory
 
     def _create_ground_truth_demand(self):
@@ -291,13 +325,10 @@ class Simulator:
 
     def run_and_evaluate(self):
         print("--- Calculating Benchmark Optimal Revenue (Oracle) ---")
-
-        # Use the fixed resource constraints (I_j / T) as per the paper's benchmark LP [cite: 218]
         fixed_resource_constraints = self.initial_resource_inventory / self.total_time_periods
 
-        # Call the LP solver with the TRUE demand parameters
         benchmark_lp_solution = solve_real_lp(
-            sampled_theta_t=self.true_demand_theta,  # Using ground truth
+            sampled_theta_t=self.true_demand_theta,
             resource_constraints_c_j=fixed_resource_constraints,
             all_contexts=self.all_contexts,
             all_products=self.all_products,
@@ -307,11 +338,6 @@ class Simulator:
             context_probabilities=None,
             product_to_idx_map=self.cmab.product_to_idx_map
         )
-
-        # Calculate the total value from the LP solution
-        # The benchmark LP in the paper is solved across an expectation of contexts.
-        # For simplicity here, we can average the optimal revenue across all contexts.
-        # (A more advanced implementation could use context probabilities if they are known)
 
         total_lp_value = 0
         for context, policy in benchmark_lp_solution.items():
@@ -326,21 +352,32 @@ class Simulator:
             total_lp_value += context_revenue
 
         avg_optimal_revenue_per_period = total_lp_value / len(self.all_contexts)
-
         total_benchmark_revenue = avg_optimal_revenue_per_period * self.total_time_periods
-
         print(f"Total Benchmark Revenue (Oracle): ${total_benchmark_revenue:,.2f}")
 
-        # Now, run the main simulation to get the achieved revenue
-        total_achieved_revenue = self.run()  # Assume run() now returns the achieved revenue
+        # --- THIS IS THE CORRECTED LOGIC ---
+        # 1. Call run() ONCE and store the result.
+        total_achieved_revenue = self.run()
 
-        # Finally, calculate and print the regret
+        # 2. Calculate regret and performance using the stored result.
         regret = total_benchmark_revenue - total_achieved_revenue
+        if total_benchmark_revenue > 0:
+            performance_percentage = (total_achieved_revenue / total_benchmark_revenue) * 100
+        else:
+            performance_percentage = 0.0
+
         print(f"\n--- Performance Summary ---")
         print(f"Total Achieved Revenue: ${total_achieved_revenue:,.2f}")
         print(f"Total Regret: ${regret:,.2f}")
-        print(
-            f"Percentage of Optimal Revenue Achieved: {(total_achieved_revenue / total_benchmark_revenue * 100):.2f}%")
+        print(f"Percentage of Optimal Revenue Achieved: {performance_percentage:.2f}%")
+
+        # 3. Return the dictionary of results.
+        return {
+            "benchmark_revenue": total_benchmark_revenue,
+            "achieved_revenue": total_achieved_revenue,
+            "regret": regret,
+            "performance_percentage": performance_percentage
+        }
 
 
     #simulator that runs for total_time_periods
@@ -354,47 +391,40 @@ class Simulator:
     #Step 5: consequences of chosen action are simulated
     def run(self):
         print(f"\n--- Starting Simulation for {self.total_time_periods} periods ---")
-        #total_sales = 0
-        total_achieved_revenue = 0  # <-- Add this
-
+        total_achieved_revenue = 0
 
         for t in range(self.total_time_periods):
             self.current_time_t = t
-            print(f"\n--- Period t = {t} ---")
+            print(f"\n--- Period t = {t}, Current Inventory: {self.current_inventory} ---")
 
-            # 1. Process Arrived Feedback
+            # --- DIAGNOSTIC STEP ---
+            # Let's print the queue to see what's inside before we process it.
+            print(f"  DEBUG: Queue at start of period: {list(self.pending_feedback)[:5]}")
+
+            # 1. Process Arrived Feedback (using a more robust while loop)
             feedback_to_process_this_period = []
-            # Iterate carefully if modifying deque while iterating, or build a new one
-            num_pending = len(self.pending_feedback)
-            for _ in range(num_pending):
-                if self.pending_feedback:
-                    arrival_t, feedback_id, success = self.pending_feedback[0]
-                    if arrival_t <= self.current_time_t:
-                        self.pending_feedback.popleft()  # Remove from queue
-                        feedback_to_process_this_period.append((feedback_id, success))
-                        # print(f"  Feedback arrived for ID {feedback_id}: {'Sale' if success else 'No Sale'}")
-                    else:
-                        # As pending_feedback is sorted by arrival_t, we can break early
-                        break
+            while self.pending_feedback and self.pending_feedback[0][0] <= self.current_time_t:
+                # The first item in the queue is ready. Pop it and add it to our list.
+                _arrival_t, feedback_id, success = self.pending_feedback.popleft()
+                feedback_to_process_this_period.append((feedback_id, success))
 
             if feedback_to_process_this_period:
                 print(f"  Processing {len(feedback_to_process_this_period)} feedback items for the agent.")
-                # Pass the current time to the method
                 self.cmab.process_feedback_for_agent(feedback_to_process_this_period, self.current_time_t)
             else:
                 print("  No feedback to process this period.")
 
             # 2. Determine Pricing Policy for the Period
-            # print("  CMAB determining pricing policy...")
-            self.cmab.determine_pricing_policy_for_period()
-            # In a real scenario, you might inspect self.cmab.current_lp_solution_x_ksi_k
+            self.cmab.determine_pricing_policy_for_period(
+                current_time_t=self.current_time_t,
+                current_inventory=self.current_inventory
+            )
 
             # 3. Simulate Observed Context for this Period
             observed_realized_context = random.choice(self.all_contexts)
             print(f"  Observed context: {observed_realized_context}")
 
             # 4. Select Action (Offer Price) and Record for Feedback
-            # print("  CMAB selecting action...")
             chosen_price_vector_id, product_specific_feedback_ids_map = \
                 self.cmab.select_action_and_record_for_feedback(
                     observed_realized_context=observed_realized_context,
@@ -408,41 +438,31 @@ class Simulator:
                 # 5. Simulate Demand and Queue Feedback
                 if product_specific_feedback_ids_map:
                     for product_obj, feedback_id in product_specific_feedback_ids_map.items():
-
-                        #NOTE: demand is simulated with calling below function
-                        #success = self._simulate_demand(product_obj, chosen_price_vector_id, chosen_pv_object)
                         success = self._simulate_demand(product_obj, chosen_price_vector_id, observed_realized_context)
                         if success:
-                            #total_sales += 1
-                            # If a sale was made, add the revenue
                             price_of_sale = chosen_pv_object.get_price_object(product_obj).amount
-                            total_achieved_revenue += price_of_sale  # <-- Add this
+                            total_achieved_revenue += price_of_sale
 
-                        #NOTE: this is simulating the feedback delay. It can be done after the simulated demand \
-                        # as simplified logic is: constumer does purchase decision with delay + information gets to \
-                        # system with delay
+                            product_idx = self.cmab.product_to_idx_map[product_obj.product_id]
+                            consumed_resources = self.resource_consumption_matrix[product_idx, :]
+                            self.current_inventory -= consumed_resources
+
                         feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
-
-                        # Add to deque, maintaining sorted order by arrival_time
                         new_feedback = (feedback_arrival_time, feedback_id, success)
+
                         if not self.pending_feedback or feedback_arrival_time >= self.pending_feedback[-1][0]:
                             self.pending_feedback.append(new_feedback)
                         else:
-                            # Insert in sorted order (simple for now, can be optimized if perf critical)
                             idx = 0
                             while idx < len(self.pending_feedback) and self.pending_feedback[idx][
                                 0] < feedback_arrival_time:
                                 idx += 1
                             self.pending_feedback.insert(idx, new_feedback)
-
-                        # print(f"    Product '{product_obj.name}': Offer recorded. Demand sim: {'Sale' if success else 'No Sale'}. Feedback due at t={feedback_arrival_time}.")
             else:
                 print("  CMAB chose P_Infinity (no prices offered).")
 
         print(f"\n--- Simulation Ended after {self.total_time_periods} periods ---")
-        #print(f"Total sales simulated: {total_sales}")
-        #print(f"Pending feedback items at end: {len(self.pending_feedback)}")
-        return total_achieved_revenue  # <-- Return the final value
+        return total_achieved_revenue
 
     # Place this method inside the Simulator class, for example, after the run() method.
     def visualize_agent_beliefs(self, context_to_show, product_to_show):
@@ -560,6 +580,8 @@ class Simulator:
 
 # --- Main execution ---
 if __name__ == '__main__':
+
+    '''
     # Configuration for the simulation
     sim_config = {
         "total_time_periods": 50,  # Number of periods to run the simulation
@@ -587,7 +609,94 @@ if __name__ == '__main__':
 
     # --- After the simulation, visualize the new summary heatmap ---
     simulator.visualize_all_learnings_heatmap()
+    '''
 
+    # --- Configuration for this Batch of Runs ---
+    output_filename = "simulation_results.csv"
+    num_simulation_runs = 10
+    sim_config = {
+        "total_time_periods": 100,
+        "num_products": 4,
+        "num_price_options_per_product": 3,
+        "max_feedback_delay": 3,
+        "num_resources": 1
+    }
+
+    # Generate a single timestamp for this entire batch of runs
+    batch_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Define the headers for your CSV file
+    fieldnames = [
+        'timestamp', 'run_number', 'total_time_periods', 'num_products',
+        'num_price_options_per_product', 'max_feedback_delay', 'num_resources',
+        'benchmark_revenue', 'achieved_revenue', 'regret', 'performance_percentage'
+    ]
+
+    # Check if the file exists to decide whether to write the header
+    file_exists = os.path.isfile(output_filename)
+
+    # Use 'a+' to append to the file. 'newline=""' is important for csv writer.
+    with open(output_filename, 'a+', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        # If the file is new, write the header row
+        if not file_exists:
+            writer.writeheader()
+
+        # --- Loop Through Simulation Runs ---
+        for i in range(num_simulation_runs):
+            print(f"\n\n--- Starting Simulation Run #{i + 1}/{num_simulation_runs} ---")
+
+            # Create a new simulator instance for each run to ensure it's fresh
+            #simulator = Simulator(**sim_config, use_real_lp=True, use_ts_update=True)
+
+            # --- THIS IS THE KEY FIX ---
+            # Create a new simulator instance for each run to ensure it's fresh
+            simulator = Simulator(**sim_config, use_real_lp=True, use_ts_update=True)
+            # ---
+
+            # Get the dictionary of results
+            results = simulator.run_and_evaluate()
+
+            if results is not None:
+                # Prepare the data row for the CSV
+                log_data = {
+                    'timestamp': batch_timestamp,
+                    'run_number': i + 1,
+                    **sim_config,  # Unpacks the sim_config dict into the log_data
+                    **results  # Unpacks the results dict into the log_data
+                }
+                writer.writerow(log_data)
+                csvfile.flush()  # Ensure data is written to disk immediately
+
+    print(f"\n\n--- All {num_simulation_runs} runs complete. Results saved to {output_filename} ---")
+
+    '''
+    num_simulation_runs = 100  # Run the experiment 100 times
+    all_performance_percentages = []
+
+    for i in range(num_simulation_runs):
+        print(f"\n\n--- Starting Simulation Run #{i + 1}/{num_simulation_runs} ---")
+        # Create a new simulator instance for each run to reset the state
+        sim_config = {
+            "total_time_periods": 50,
+            "num_products": 4,  # Make sure this matches your setup
+            "num_price_options_per_product": 3,
+            "max_feedback_delay": 3,
+            "num_resources": 1
+        }
+        simulator = Simulator(**sim_config, use_real_lp=True)
+
+        # This will run the full evaluation and return the performance
+        performance = simulator.run_and_evaluate()
+        if performance is not None:
+            all_performance_percentages.append(performance)
+
+    if all_performance_percentages:
+        average_performance = sum(all_performance_percentages) / len(all_performance_percentages)
+        print(f"\n\n--- FINAL RESULTS (after {num_simulation_runs} runs) ---")
+        print(f"Average Percentage of Optimal Revenue Achieved: {average_performance:.2f}%")
+    '''
     '''
     if simulator.all_contexts and simulator.all_products:
         context_to_inspect = simulator.all_contexts[0]

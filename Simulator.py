@@ -90,6 +90,9 @@ class Simulator:
         )
         print("Initialized DelayedTSAgent.")
 
+        # 4.5 setting ground truth
+        self.true_demand_theta = self._create_ground_truth_demand()
+
         # 5. Initialize Resources for CMAB
         self.resource_consumption_matrix, self.initial_resource_inventory = self._initialize_resources()
         print(f"Resource consumption matrix shape: {self.resource_consumption_matrix.shape}")
@@ -214,17 +217,44 @@ class Simulator:
                                                  self.total_time_periods * len(self.all_products) * 2))  # ensure enough
         return resource_consumption_matrix, initial_resource_inventory
 
+    def _create_ground_truth_demand(self):
+        """
+        Creates the true, underlying demand probabilities for the entire simulation.
+        This is the "oracle" information that the agent does not know.
+        """
+        true_demand_theta = {}
+        for context in self.all_contexts:
+            true_demand_theta[context] = {}
+            for product in self.all_products:
+                true_demand_theta[context][product] = {}
+                for pv_id in self.all_price_indices:
+                    # Example: Define a realistic, but unknown-to-the-agent, demand.
+                    # Here, higher price vector IDs lead to lower demand.
+                    # You can make this as complex as you want.
+                    base_prob = 0.7
+                    price_effect = -0.2 * pv_id
+                    context_effect = 0.1 if "HIGH" in str(context.season) else 0
+
+                    true_prob = base_prob + price_effect + context_effect
+                    # Clamp probability between 0.05 and 0.95
+                    true_demand_theta[context][product][pv_id] = max(0.05, min(0.95, true_prob))
+
+        return true_demand_theta
 
     #currently simulates a very simple demand model, assumption is, that there is a base demand with an added price effect and product effect
     #higher price vector ID means higher price, so lower chance of sale
     #currently there is a product effect which simulates a certain preference for one product over another
     #this will very likely be ommited in final build
     #output is a boolean indicating if the sale was successful or not
-    def _simulate_demand(self, product: Product, chosen_price_vector_id: int | None,
-                         chosen_price_vector: PriceVector | None) -> bool:
+
+    def _simulate_demand(self, product: Product, chosen_price_vector_id: int, context: Context) -> bool:
+        #Note: Old code
         """
+        def _simulate_demand(self, product: Product, chosen_price_vector_id: int | None,
+                         chosen_price_vector: PriceVector | None) -> bool:
         Simulates if a customer purchases a product.
         This is a very basic demand model for testing.
+        """
         """
         if chosen_price_vector_id is None or chosen_price_vector is None:
             return False  # No offer, no sale
@@ -242,8 +272,76 @@ class Simulator:
 
         sale_prob = base_sale_prob + price_effect + product_effect
         sale_prob = max(0.05, min(0.95, sale_prob))  # Clamp probability
-
+        
         return random.random() < sale_prob
+        """
+
+        """
+            Simulates if a customer purchases a product based on the GROUND TRUTH demand.
+            """
+        if chosen_price_vector_id is None:
+            return False
+
+        # Get the true probability from our ground truth model
+        true_prob = self.true_demand_theta[context][product][chosen_price_vector_id]
+
+        return random.random() < true_prob
+
+    # In Simulator.py, maybe in a new "run_and_evaluate" method
+
+    def run_and_evaluate(self):
+        print("--- Calculating Benchmark Optimal Revenue (Oracle) ---")
+
+        # Use the fixed resource constraints (I_j / T) as per the paper's benchmark LP [cite: 218]
+        fixed_resource_constraints = self.initial_resource_inventory / self.total_time_periods
+
+        # Call the LP solver with the TRUE demand parameters
+        benchmark_lp_solution = solve_real_lp(
+            sampled_theta_t=self.true_demand_theta,  # Using ground truth
+            resource_constraints_c_j=fixed_resource_constraints,
+            all_contexts=self.all_contexts,
+            all_products=self.all_products,
+            all_price_indices=self.all_price_indices,
+            all_price_vectors_map=self.all_price_vectors_map,
+            resource_consumption_matrix_A_ij=self.resource_consumption_matrix,
+            context_probabilities=None,
+            product_to_idx_map=self.cmab.product_to_idx_map
+        )
+
+        # Calculate the total value from the LP solution
+        # The benchmark LP in the paper is solved across an expectation of contexts.
+        # For simplicity here, we can average the optimal revenue across all contexts.
+        # (A more advanced implementation could use context probabilities if they are known)
+
+        total_lp_value = 0
+        for context, policy in benchmark_lp_solution.items():
+            context_revenue = 0
+            for pv_id, prob in policy.items():
+                revenue_per_pv = 0
+                for product in self.all_products:
+                    price = self.all_price_vectors_map[pv_id].get_price_object(product).amount
+                    true_demand = self.true_demand_theta[context][product][pv_id]
+                    revenue_per_pv += price * true_demand
+                context_revenue += revenue_per_pv * prob
+            total_lp_value += context_revenue
+
+        avg_optimal_revenue_per_period = total_lp_value / len(self.all_contexts)
+
+        total_benchmark_revenue = avg_optimal_revenue_per_period * self.total_time_periods
+
+        print(f"Total Benchmark Revenue (Oracle): ${total_benchmark_revenue:,.2f}")
+
+        # Now, run the main simulation to get the achieved revenue
+        total_achieved_revenue = self.run()  # Assume run() now returns the achieved revenue
+
+        # Finally, calculate and print the regret
+        regret = total_benchmark_revenue - total_achieved_revenue
+        print(f"\n--- Performance Summary ---")
+        print(f"Total Achieved Revenue: ${total_achieved_revenue:,.2f}")
+        print(f"Total Regret: ${regret:,.2f}")
+        print(
+            f"Percentage of Optimal Revenue Achieved: {(total_achieved_revenue / total_benchmark_revenue * 100):.2f}%")
+
 
     #simulator that runs for total_time_periods
     #Step 1: first, pending feedback is checked, where the queue is iterated from the front (i.e. oldest first)
@@ -256,7 +354,9 @@ class Simulator:
     #Step 5: consequences of chosen action are simulated
     def run(self):
         print(f"\n--- Starting Simulation for {self.total_time_periods} periods ---")
-        total_sales = 0
+        #total_sales = 0
+        total_achieved_revenue = 0  # <-- Add this
+
 
         for t in range(self.total_time_periods):
             self.current_time_t = t
@@ -310,9 +410,13 @@ class Simulator:
                     for product_obj, feedback_id in product_specific_feedback_ids_map.items():
 
                         #NOTE: demand is simulated with calling below function
-                        success = self._simulate_demand(product_obj, chosen_price_vector_id, chosen_pv_object)
+                        #success = self._simulate_demand(product_obj, chosen_price_vector_id, chosen_pv_object)
+                        success = self._simulate_demand(product_obj, chosen_price_vector_id, observed_realized_context)
                         if success:
-                            total_sales += 1
+                            #total_sales += 1
+                            # If a sale was made, add the revenue
+                            price_of_sale = chosen_pv_object.get_price_object(product_obj).amount
+                            total_achieved_revenue += price_of_sale  # <-- Add this
 
                         #NOTE: this is simulating the feedback delay. It can be done after the simulated demand \
                         # as simplified logic is: constumer does purchase decision with delay + information gets to \
@@ -336,8 +440,9 @@ class Simulator:
                 print("  CMAB chose P_Infinity (no prices offered).")
 
         print(f"\n--- Simulation Ended after {self.total_time_periods} periods ---")
-        print(f"Total sales simulated: {total_sales}")
-        print(f"Pending feedback items at end: {len(self.pending_feedback)}")
+        #print(f"Total sales simulated: {total_sales}")
+        #print(f"Pending feedback items at end: {len(self.pending_feedback)}")
+        return total_achieved_revenue  # <-- Return the final value
 
     # Place this method inside the Simulator class, for example, after the run() method.
     def visualize_agent_beliefs(self, context_to_show, product_to_show):
@@ -472,7 +577,9 @@ if __name__ == '__main__':
         num_resources=sim_config["num_resources"],
         use_real_lp=True  # Set to True to use your new solver
     )
-    simulator.run()
+
+    #simulator.run()
+    simulator.run_and_evaluate()  # <--- CORRECTED LINE
 
     # --- After the simulation, visualize the results ---
     # You can pick any context and product you want to inspect.

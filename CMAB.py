@@ -24,6 +24,9 @@ class CMAB:
                  resource_consumption_matrix: np.ndarray,  # Shape: (num_products, num_resources)
                  initial_resource_inventory: np.ndarray,  # Shape: (num_resources,)
                  total_time_periods: int,
+                 # --- NEW ARGUMENT ---
+                 demand_scaling_factor: float,
+                 pacing_aggressiveness: float = 1.0,  # <-- Add this
                  context_probabilities: dict['DomainContext', float] = None,
                  use_ts_update: bool = False):
         """
@@ -72,6 +75,10 @@ class CMAB:
 
         # TS-fixed: c_j = I_j / T as per Ferreira et al. (2018) (Section 2.2, used in LP)
         #self.resource_constraints_c_j = self.initial_resource_inventory_I_j / self.total_time_periods_T
+
+        self.demand_scaling_factor = demand_scaling_factor
+
+        self.pacing_aggressiveness = pacing_aggressiveness  # <-- Store it
 
         self.context_probabilities = context_probabilities
         if self.context_probabilities:
@@ -145,6 +152,8 @@ class CMAB:
         sampled_theta_t = self.agent.sample_theta_for_each_arm()
         # Expected structure: {context_obj: {product_obj: {price_vector_id: sampled_mean_demand}}}
 
+        #Note: old code
+        '''
         # --- 4. ADDED: Dynamic Resource Constraint Calculation ---
         if self.use_ts_update:
             # This is the TS-Update logic from Algorithm 2 [cite: 297]
@@ -158,7 +167,23 @@ class CMAB:
         else:
             # This is the original TS-Fixed logic from Algorithm 1 [cite: 220]
             resource_constraints_c_j = self.initial_resource_inventory_I_j / self.total_time_periods_T
+        '''
 
+        # --- UPDATED BUDGET LOGIC ---
+        if self.use_ts_update:
+            # This logic is for when use_ts_update is True
+            remaining_time = self.total_time_periods_T - current_time_t
+            if remaining_time > 0:
+                safe_inventory = np.maximum(current_inventory, 0)
+                base_budget = safe_inventory / remaining_time
+                resource_constraints_c_j = base_budget * self.pacing_aggressiveness
+            else:
+                resource_constraints_c_j = np.zeros_like(current_inventory)
+        else:
+            # This logic is for when use_ts_update is False (your current setup)
+            base_budget = self.initial_resource_inventory_I_j / self.total_time_periods_T
+            resource_constraints_c_j = base_budget * self.pacing_aggressiveness
+        # --- END UPDATE ---
 
         # Step 2: Optimize Prices Given Sampled Demand (Solve LP)
         # The LP solver will use sampled_theta_t to get d_ik(ksi|theta(t)).
@@ -173,6 +198,8 @@ class CMAB:
             all_price_indices=self.agent.all_price_indices,
             all_price_vectors_map=self.all_price_vectors_map,
             resource_consumption_matrix_A_ij=self.resource_consumption_matrix_A_ij,
+            # --- PASS NEW ARGUMENT ---
+            demand_scaling_factor=self.demand_scaling_factor,
             context_probabilities=self.context_probabilities,
             product_to_idx_map=self.product_to_idx_map  # For indexing into A_ij
         )

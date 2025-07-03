@@ -59,7 +59,8 @@ class Simulator:
                  max_feedback_delay: int = 5,
                  num_resources: int = 1,
                  use_real_lp: bool = True,  # Add a flag to easily switch
-                 use_ts_update: bool = False
+                 use_ts_update: bool = False,
+                 pacing_aggressiveness: float = 1.0  # <-- ADD THIS ARGUMENT
                  ):
         print("Initializing Simulator...")
         self.total_time_periods = total_time_periods
@@ -110,6 +111,9 @@ class Simulator:
         solver_function = solve_real_lp if use_real_lp else mock_lp_solver
         solver_name = "REAL LP solver" if use_real_lp else "MOCK LP solver"
 
+        self.use_ts_update = use_ts_update
+        self.demand_scaling_factor = 2.0  # Centralized scaling factor
+
         # 6. Initialize CMAB
         self.cmab = CMAB(
             agent=self.agent,
@@ -120,6 +124,8 @@ class Simulator:
             initial_resource_inventory=self.initial_resource_inventory,
             total_time_periods=self.total_time_periods,
             context_probabilities=None,  # Not using explicit context probabilities in this simple sim
+            demand_scaling_factor=self.demand_scaling_factor,
+            pacing_aggressiveness=pacing_aggressiveness,  # <-- PASS THE ARGUMENT HERE
             use_ts_update=use_ts_update  # <-- Use the argument passed to Simulator
         )
         print(f"Initialized CMAB with {solver_name}.")
@@ -337,11 +343,12 @@ class Simulator:
         # AVERAGE quantity demanded in a Poisson distribution.
         # Let's say a high probability (e.g., 0.9) corresponds to an average demand of 2 units.
         # We can set lambda = true_prob * scaling_factor. A scaling factor of 2.0 is a reasonable start.
-        scaling_factor = 2.0
+        #scaling_factor = 2.0
         true_prob = self.true_demand_theta[context][product][chosen_price_vector_id]
 
         # The rate (lambda) for the Poisson distribution.
-        lambda_rate = true_prob * scaling_factor
+        #lambda_rate = true_prob * scaling_factor
+        lambda_rate = true_prob * self.demand_scaling_factor
 
         # Sample the demand quantity from the Poisson distribution.
         demanded_quantity = np.random.poisson(lam=lambda_rate)
@@ -365,6 +372,7 @@ class Simulator:
             all_price_vectors_map=self.all_price_vectors_map,
             resource_consumption_matrix_A_ij=self.resource_consumption_matrix,
             context_probabilities=None,
+            demand_scaling_factor=self.demand_scaling_factor,  # Pass the factor
             product_to_idx_map=self.cmab.product_to_idx_map
         )
 
@@ -375,8 +383,15 @@ class Simulator:
                 revenue_per_pv = 0
                 for product in self.all_products:
                     price = self.all_price_vectors_map[pv_id].get_price_object(product).amount
-                    true_demand = self.true_demand_theta[context][product][pv_id]
-                    revenue_per_pv += price * true_demand
+                    #true_demand = self.true_demand_theta[context][product][pv_id]
+                    #revenue_per_pv += price * true_demand
+
+                    # --- CORRECTED BENCHMARK LOGIC ---
+                    true_prob = self.true_demand_theta[context][product][pv_id]
+                    expected_quantity = true_prob * self.demand_scaling_factor
+                    revenue_per_pv += price * expected_quantity
+                    # --- END CORRECTION ---
+
                 context_revenue += revenue_per_pv * prob
             total_lp_value += context_revenue
 
@@ -722,7 +737,8 @@ if __name__ == '__main__':
         "num_products": 4,
         "num_price_options_per_product": 3,
         "max_feedback_delay": 3,
-        "num_resources": 1
+        "num_resources": 1,
+        "pacing_aggressiveness": 1.5  # <-- Tune this value. > 1.0 is more aggressive.
     }
 
     # Generate a single timestamp for this entire batch of runs
@@ -732,6 +748,7 @@ if __name__ == '__main__':
     fieldnames = [
         'timestamp', 'run_number', 'total_time_periods', 'num_products',
         'num_price_options_per_product', 'max_feedback_delay', 'num_resources',
+        'pacing_aggressiveness',  # <-- ADD THIS FIELD
         'benchmark_revenue', 'achieved_revenue', 'regret', 'performance_percentage'
     ]
 

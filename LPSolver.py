@@ -23,6 +23,8 @@ def solve_real_lp(
         all_price_vectors_map: dict[int, PriceVector],
         #matrix specifying how many units of resource j are consumed by one unit of product i
         resource_consumption_matrix_A_ij: np.ndarray,
+        # --- NEW ARGUMENT ---
+        demand_scaling_factor: float,
         context_probabilities: dict | None,
         #helper dict to quickly find correct row in the ressource consumption matrix given product id
         product_to_idx_map: dict
@@ -58,9 +60,17 @@ def solve_real_lp(
             for product in all_products:
                 # Get price p_ik
                 price_p_ik = all_price_vectors_map[pv_id].get_price_object(product).amount
-                # Get sampled demand d_ik for the current context
-                demand_d_ik = sampled_theta_t[context][product][pv_id]
-                total_revenue_for_pv += price_p_ik * demand_d_ik
+                # Get sampled prob d_ik for the current context
+                prob_d_ik = sampled_theta_t[context][product][pv_id]
+
+                #Note: old part
+                #total_revenue_for_pv += price_p_ik * prob_d_ik
+
+                # --- UPDATED LOGIC ---
+                # Calculate expected quantity using the scaling factor
+                expected_quantity = prob_d_ik * demand_scaling_factor
+                total_revenue_for_pv += price_p_ik * expected_quantity
+                # --- END UPDATE ---
             revenue_per_pv[pv_id] = total_revenue_for_pv
 
         prob += pulp.lpSum(
@@ -77,8 +87,17 @@ def solve_real_lp(
                     # Get product index for the consumption matrix
                     i = product_to_idx_map[product.product_id]
                     consumption_a_ij = resource_consumption_matrix_A_ij[i, j]
-                    demand_d_ik = sampled_theta_t[context][product][pv_id]
-                    total_consumption_for_pv += consumption_a_ij * demand_d_ik
+                    prob_d_ik = sampled_theta_t[context][product][pv_id]
+
+                    #Note: old part
+                    #total_consumption_for_pv += consumption_a_ij * prob_d_ik
+
+                    # --- UPDATED LOGIC ---
+                    # Calculate expected consumption using the scaling factor
+                    expected_quantity = prob_d_ik * demand_scaling_factor
+                    total_consumption_for_pv += consumption_a_ij * expected_quantity
+                    # --- END UPDATE ---
+
                 consumption_per_pv[pv_id] = total_consumption_for_pv
 
             prob += pulp.lpSum(

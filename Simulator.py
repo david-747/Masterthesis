@@ -313,6 +313,9 @@ class Simulator:
         """
             Simulates if a customer purchases a product based on the GROUND TRUTH demand.
             """
+
+        #Note: below is the code that simulates at most 1 demand for each product
+        '''
         if chosen_price_vector_id is None:
             return False
 
@@ -320,6 +323,32 @@ class Simulator:
         true_prob = self.true_demand_theta[context][product][chosen_price_vector_id]
 
         return random.random() < true_prob
+        '''
+
+        """
+                Simulates the quantity of a product a customer demands based on the GROUND TRUTH demand,
+                using a Poisson distribution.
+                Returns the quantity demanded (an integer >= 0).
+                """
+        if chosen_price_vector_id is None:
+            return 0  # No offer, no demand
+
+        # The true_prob from the ground truth model can be used to model the
+        # AVERAGE quantity demanded in a Poisson distribution.
+        # Let's say a high probability (e.g., 0.9) corresponds to an average demand of 2 units.
+        # We can set lambda = true_prob * scaling_factor. A scaling factor of 2.0 is a reasonable start.
+        scaling_factor = 2.0
+        true_prob = self.true_demand_theta[context][product][chosen_price_vector_id]
+
+        # The rate (lambda) for the Poisson distribution.
+        lambda_rate = true_prob * scaling_factor
+
+        # Sample the demand quantity from the Poisson distribution.
+        demanded_quantity = np.random.poisson(lam=lambda_rate)
+
+        return int(demanded_quantity)
+
+
 
     # In Simulator.py, maybe in a new "run_and_evaluate" method
 
@@ -431,6 +460,7 @@ class Simulator:
                     current_time_t=self.current_time_t
                 )
 
+            '''
             if chosen_price_vector_id is not None:
                 chosen_pv_object = self.all_price_vectors_map[chosen_price_vector_id]
                 print(f"  CMAB chose Price Vector ID: {chosen_price_vector_id} ({chosen_pv_object.name})")
@@ -460,7 +490,80 @@ class Simulator:
                             self.pending_feedback.insert(idx, new_feedback)
             else:
                 print("  CMAB chose P_Infinity (no prices offered).")
+            '''
 
+            if chosen_price_vector_id is not None:
+                chosen_pv_object = self.all_price_vectors_map[chosen_price_vector_id]
+                print(f"  CMAB chose Price Vector ID: {chosen_price_vector_id} ({chosen_pv_object.name})")
+
+                # 5. Simulate Demand, Check Inventory for the whole basket, and Queue Feedback
+                if product_specific_feedback_ids_map:
+                    # First, determine the entire demand vector for the customer.
+                    demands_per_product = {
+                        prod: self._simulate_demand(prod, chosen_price_vector_id, observed_realized_context)
+                        for prod in product_specific_feedback_ids_map.keys()
+                    }
+
+                    # Calculate the total resources required for this entire demand basket.
+                    total_required_resources = np.zeros_like(self.current_inventory)
+                    for product_obj, quantity in demands_per_product.items():
+                        if quantity > 0:
+                            product_idx = self.cmab.product_to_idx_map[product_obj.product_id]
+                            total_required_resources += self.resource_consumption_matrix[product_idx, :] * quantity
+
+                    # Only proceed with the sale if the ENTIRE demand basket can be satisfied.
+                    can_satisfy_full_demand = np.all(self.current_inventory >= total_required_resources)
+
+                    if can_satisfy_full_demand and sum(demands_per_product.values()) > 0:
+                        demand_str = ", ".join(
+                            [f'{p.product_id}: {q}' for p, q in demands_per_product.items() if q > 0])
+                        print(f"  Demand vector: [{demand_str}]. Inventory sufficient, sale proceeds.")
+
+                        # Update inventory with the total consumption for the whole basket
+                        self.current_inventory -= total_required_resources
+
+                        # Process each product's feedback and update revenue
+                        for product_obj, feedback_id in product_specific_feedback_ids_map.items():
+                            demanded_quantity = demands_per_product.get(product_obj, 0)
+                            success_for_agent = demanded_quantity > 0
+
+                            if success_for_agent:
+                                price_of_sale = chosen_pv_object.get_price_object(product_obj).amount
+                                total_achieved_revenue += price_of_sale * demanded_quantity
+
+                            # Queue the binary feedback for the agent
+                            feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
+                            new_feedback = (feedback_arrival_time, feedback_id, success_for_agent)
+                            # (The feedback queuing logic remains the same)
+                            if not self.pending_feedback or feedback_arrival_time >= self.pending_feedback[-1][0]:
+                                self.pending_feedback.append(new_feedback)
+                            else:
+                                idx = 0
+                                while idx < len(self.pending_feedback) and self.pending_feedback[idx][
+                                    0] < feedback_arrival_time:
+                                    idx += 1
+                                self.pending_feedback.insert(idx, new_feedback)
+                    else:
+                        # If the basket can't be fulfilled (or if demand was zero), no sale occurs.
+                        if sum(demands_per_product.values()) > 0:
+                            print(f"  Demand existed but inventory was insufficient. No sale.")
+
+                        # Send failure feedback for all products in the offered price vector.
+                        for product_obj, feedback_id in product_specific_feedback_ids_map.items():
+                            success_for_agent = False
+                            feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
+                            new_feedback = (feedback_arrival_time, feedback_id, success_for_agent)
+                            # (The feedback queuing logic remains the same)
+                            if not self.pending_feedback or feedback_arrival_time >= self.pending_feedback[-1][0]:
+                                self.pending_feedback.append(new_feedback)
+                            else:
+                                idx = 0
+                                while idx < len(self.pending_feedback) and self.pending_feedback[idx][
+                                    0] < feedback_arrival_time:
+                                    idx += 1
+                                self.pending_feedback.insert(idx, new_feedback)
+            else:
+                print("  CMAB chose P_Infinity (no prices offered).")
         print(f"\n--- Simulation Ended after {self.total_time_periods} periods ---")
         return total_achieved_revenue
 
@@ -652,7 +755,7 @@ if __name__ == '__main__':
 
             # --- THIS IS THE KEY FIX ---
             # Create a new simulator instance for each run to ensure it's fresh
-            simulator = Simulator(**sim_config, use_real_lp=True, use_ts_update=True)
+            simulator = Simulator(**sim_config, use_real_lp=True, use_ts_update=False)
             # ---
 
             # Get the dictionary of results

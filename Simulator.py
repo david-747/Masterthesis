@@ -58,12 +58,20 @@ class Simulator:
                  num_price_options_per_product: int = 2,
                  max_feedback_delay: int = 5,
                  num_resources: int = 1,
-                 use_real_lp: bool = True,  # Add a flag to easily switch
+                 # --- NEW & MODIFIED ARGUMENTS ---
+                 avg_arrivals_per_hour: float = 1.5,  # Lambda for Poisson distribution
+                 arrival_decay_kappa: float = 1.5,
                  use_ts_update: bool = False,
-                 pacing_aggressiveness: float = 1.0  # <-- ADD THIS ARGUMENT
+                 pacing_aggressiveness: float = 1.0,
+                 use_real_lp: bool = True  # Kept for consistency
                  ):
         print("Initializing Simulator...")
         self.total_time_periods = total_time_periods
+
+        # --- NEW: Store the average arrival rate ---
+        self.avg_arrivals_per_hour = avg_arrivals_per_hour
+        self.arrival_decay_kappa = arrival_decay_kappa
+
         self.num_products = num_products
         self.num_price_options = num_price_options_per_product  # Simplified: total number of price vectors
         self.max_feedback_delay = max_feedback_delay
@@ -102,6 +110,11 @@ class Simulator:
         self.resource_consumption_matrix, self.initial_resource_inventory = self._initialize_resources()
         print(f"Resource consumption matrix shape: {self.resource_consumption_matrix.shape}")
         print(f"Initial resource inventory: {self.initial_resource_inventory}")
+
+        # --- ADD THESE LINES in __init__ ---
+        self.current_day = -1  # Initialize to -1 to ensure day 0 is triggered
+        self.daily_resource_bucket = np.zeros_like(self.initial_resource_inventory)
+        # ---
 
         # --- ADD THIS LINE ---
         self.current_inventory = np.copy(self.initial_resource_inventory)
@@ -434,21 +447,17 @@ class Simulator:
     #Step 4: cmab selects and action (i.e. price vector) and passes vector id + prepared product_feedback map
     #Step 5: consequences of chosen action are simulated
     def run(self):
-        print(f"\n--- Starting Simulation for {self.total_time_periods} periods ---")
+        print(f"\n--- Starting Simulation for {self.total_time_periods} hours ---")
         total_achieved_revenue = 0
 
+        # This is the main loop over each hour (period t) in the simulation.
         for t in range(self.total_time_periods):
             self.current_time_t = t
-            print(f"\n--- Period t = {t}, Current Inventory: {self.current_inventory} ---")
+            print(f"\n--- Hour t = {t}, Inventory: {self.current_inventory} ---")
 
-            # --- DIAGNOSTIC STEP ---
-            # Let's print the queue to see what's inside before we process it.
-            print(f"  DEBUG: Queue at start of period: {list(self.pending_feedback)[:5]}")
-
-            # 1. Process Arrived Feedback (using a more robust while loop)
+            # 1. PROCESS FEEDBACK (Your existing logic for this is correct)
             feedback_to_process_this_period = []
             while self.pending_feedback and self.pending_feedback[0][0] <= self.current_time_t:
-                # The first item in the queue is ready. Pop it and add it to our list.
                 _arrival_t, feedback_id, success = self.pending_feedback.popleft()
                 feedback_to_process_this_period.append((feedback_id, success))
 
@@ -458,128 +467,97 @@ class Simulator:
             else:
                 print("  No feedback to process this period.")
 
-            # 2. Determine Pricing Policy for the Period
+            # --- ALIGNMENT CHANGE 1: Implement TS-Fixed/TS-Update Budgeting ---
+            # This block replaces the entire "Daily Bucket Management" logic.
+            # We calculate the resource constraint c_j for this specific period t.
+            if self.use_ts_update:
+                # TS-Update Logic from Algorithm 2 [cite: 297, 304]
+                remaining_time = self.total_time_periods - self.current_time_t
+                if remaining_time > 0:
+                    safe_inventory = np.maximum(self.current_inventory, 0)
+                    resource_constraints_c_j = safe_inventory / remaining_time
+                else:
+                    resource_constraints_c_j = np.zeros_like(self.current_inventory)
+            else:
+                # TS-Fixed Logic from Algorithm 1 [cite: 220, 234]
+                resource_constraints_c_j = self.initial_resource_inventory / self.total_time_periods
+
+            # --- ALIGNMENT CHANGE 2: Make ONE Decision Per Period ---
+            # The following steps are now performed only ONCE per hour t, not in a loop over customers.
+
+            # 2a. Determine Pricing Policy for the entire period t
             self.cmab.determine_pricing_policy_for_period(
                 current_time_t=self.current_time_t,
-                current_inventory=self.current_inventory
+                resource_constraints_c_j=resource_constraints_c_j
             )
 
-            # 3. Simulate Observed Context for this Period
+            # 2b. Observe a context and select ONE price vector for the period
             observed_realized_context = random.choice(self.all_contexts)
-            print(f"  Observed context: {observed_realized_context}")
+            print(f"    Observed context: {observed_realized_context}")
 
-            # 4. Select Action (Offer Price) and Record for Feedback
             chosen_price_vector_id, product_specific_feedback_ids_map = \
                 self.cmab.select_action_and_record_for_feedback(
                     observed_realized_context=observed_realized_context,
                     current_time_t=self.current_time_t
                 )
 
-            '''
+            # 2c. Simulate the AGGREGATE outcome for the period
             if chosen_price_vector_id is not None:
                 chosen_pv_object = self.all_price_vectors_map[chosen_price_vector_id]
-                print(f"  CMAB chose Price Vector ID: {chosen_price_vector_id} ({chosen_pv_object.name})")
+                print(
+                    f"    CMAB chose Price Vector ID: {chosen_price_vector_id} ({chosen_pv_object.name}) for this period.")
 
-                # 5. Simulate Demand and Queue Feedback
-                if product_specific_feedback_ids_map:
-                    for product_obj, feedback_id in product_specific_feedback_ids_map.items():
-                        success = self._simulate_demand(product_obj, chosen_price_vector_id, observed_realized_context)
-                        if success:
-                            price_of_sale = chosen_pv_object.get_price_object(product_obj).amount
-                            total_achieved_revenue += price_of_sale
+                # Your _simulate_demand function already returns a quantity, which is perfect for this.
+                demands_per_product = {
+                    prod: self._simulate_demand(prod, chosen_price_vector_id, observed_realized_context)
+                    for prod in self.all_products
+                }
 
-                            product_idx = self.cmab.product_to_idx_map[product_obj.product_id]
-                            consumed_resources = self.resource_consumption_matrix[product_idx, :]
-                            self.current_inventory -= consumed_resources
+                total_required_resources = np.zeros_like(self.current_inventory)
+                for product_obj, quantity in demands_per_product.items():
+                    if quantity > 0:
+                        product_idx = self.cmab.product_to_idx_map[product_obj.product_id]
+                        total_required_resources += self.resource_consumption_matrix[product_idx, :] * quantity
 
-                        feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
-                        new_feedback = (feedback_arrival_time, feedback_id, success)
-
-                        if not self.pending_feedback or feedback_arrival_time >= self.pending_feedback[-1][0]:
-                            self.pending_feedback.append(new_feedback)
-                        else:
-                            idx = 0
-                            while idx < len(self.pending_feedback) and self.pending_feedback[idx][
-                                0] < feedback_arrival_time:
-                                idx += 1
-                            self.pending_feedback.insert(idx, new_feedback)
-            else:
-                print("  CMAB chose P_Infinity (no prices offered).")
-            '''
-
-            if chosen_price_vector_id is not None:
-                chosen_pv_object = self.all_price_vectors_map[chosen_price_vector_id]
-                print(f"  CMAB chose Price Vector ID: {chosen_price_vector_id} ({chosen_pv_object.name})")
-
-                # 5. Simulate Demand, Check Inventory for the whole basket, and Queue Feedback
-                if product_specific_feedback_ids_map:
-                    # First, determine the entire demand vector for the customer.
-                    demands_per_product = {
-                        prod: self._simulate_demand(prod, chosen_price_vector_id, observed_realized_context)
-                        for prod in product_specific_feedback_ids_map.keys()
-                    }
-
-                    # Calculate the total resources required for this entire demand basket.
-                    total_required_resources = np.zeros_like(self.current_inventory)
-                    for product_obj, quantity in demands_per_product.items():
-                        if quantity > 0:
-                            product_idx = self.cmab.product_to_idx_map[product_obj.product_id]
-                            total_required_resources += self.resource_consumption_matrix[product_idx, :] * quantity
-
-                    # Only proceed with the sale if the ENTIRE demand basket can be satisfied.
-                    can_satisfy_full_demand = np.all(self.current_inventory >= total_required_resources)
-
-                    if can_satisfy_full_demand and sum(demands_per_product.values()) > 0:
+                # Check if aggregate demand can be met by remaining inventory
+                if np.all(self.current_inventory >= total_required_resources):
+                    if np.any(total_required_resources > 0):
                         demand_str = ", ".join(
                             [f'{p.product_id}: {q}' for p, q in demands_per_product.items() if q > 0])
-                        print(f"  Demand vector: [{demand_str}]. Inventory sufficient, sale proceeds.")
+                        print(f"    Demand vector: [{demand_str}]. Inventory sufficient, sale proceeds.")
 
-                        # Update inventory with the total consumption for the whole basket
-                        self.current_inventory -= total_required_resources
+                    self.current_inventory -= total_required_resources
 
-                        # Process each product's feedback and update revenue
-                        for product_obj, feedback_id in product_specific_feedback_ids_map.items():
-                            demanded_quantity = demands_per_product.get(product_obj, 0)
-                            success_for_agent = demanded_quantity > 0
+                    # For each product, schedule feedback based on whether its demand was > 0
+                    for product_obj, feedback_id in product_specific_feedback_ids_map.items():
+                        demanded_quantity = demands_per_product.get(product_obj, 0)
+                        success_for_agent = demanded_quantity > 0
 
-                            if success_for_agent:
-                                price_of_sale = chosen_pv_object.get_price_object(product_obj).amount
-                                total_achieved_revenue += price_of_sale * demanded_quantity
+                        if success_for_agent:
+                            price_of_sale = chosen_pv_object.get_price_object(product_obj).amount
+                            total_achieved_revenue += price_of_sale * demanded_quantity
 
-                            # Queue the binary feedback for the agent
-                            feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
-                            new_feedback = (feedback_arrival_time, feedback_id, success_for_agent)
-                            # (The feedback queuing logic remains the same)
-                            if not self.pending_feedback or feedback_arrival_time >= self.pending_feedback[-1][0]:
-                                self.pending_feedback.append(new_feedback)
-                            else:
-                                idx = 0
-                                while idx < len(self.pending_feedback) and self.pending_feedback[idx][
-                                    0] < feedback_arrival_time:
-                                    idx += 1
-                                self.pending_feedback.insert(idx, new_feedback)
-                    else:
-                        # If the basket can't be fulfilled (or if demand was zero), no sale occurs.
-                        if sum(demands_per_product.values()) > 0:
-                            print(f"  Demand existed but inventory was insufficient. No sale.")
+                        feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
+                        new_feedback = (feedback_arrival_time, feedback_id, success_for_agent)
+                        self.pending_feedback.append(new_feedback)
 
-                        # Send failure feedback for all products in the offered price vector.
-                        for product_obj, feedback_id in product_specific_feedback_ids_map.items():
-                            success_for_agent = False
-                            feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
-                            new_feedback = (feedback_arrival_time, feedback_id, success_for_agent)
-                            # (The feedback queuing logic remains the same)
-                            if not self.pending_feedback or feedback_arrival_time >= self.pending_feedback[-1][0]:
-                                self.pending_feedback.append(new_feedback)
-                            else:
-                                idx = 0
-                                while idx < len(self.pending_feedback) and self.pending_feedback[idx][
-                                    0] < feedback_arrival_time:
-                                    idx += 1
-                                self.pending_feedback.insert(idx, new_feedback)
-            else:
-                print("  CMAB chose P_Infinity (no prices offered).")
-        print(f"\n--- Simulation Ended after {self.total_time_periods} periods ---")
+                else:  # Inventory was insufficient for the aggregate demand
+                    if np.any(total_required_resources > 0):
+                        print(f"    Demand existed but inventory was insufficient. No sale.")
+                    # If inventory is insufficient, it's a "failure" for all products from this action
+                    for product_obj, feedback_id in product_specific_feedback_ids_map.items():
+                        feedback_arrival_time = self.current_time_t + random.randint(1, self.max_feedback_delay + 1)
+                        new_feedback = (feedback_arrival_time, feedback_id, False)
+                        self.pending_feedback.append(new_feedback)
+
+                # Sort the pending feedback queue after adding new items to keep it ordered
+                if feedback_to_process_this_period:  # Only sort if we added something
+                    self.pending_feedback = deque(sorted(list(self.pending_feedback)))
+
+            else:  # This handles the case where p_infinity was chosen
+                print("    CMAB chose P_Infinity (no prices offered) for this period.")
+
+        print(f"\n--- Simulation Ended after {self.total_time_periods} hours ---")
         return total_achieved_revenue
 
     # Place this method inside the Simulator class, for example, after the run() method.
@@ -733,12 +711,12 @@ if __name__ == '__main__':
     output_filename = "simulation_results.csv"
     num_simulation_runs = 10
     sim_config = {
-        "total_time_periods": 100,
+        "total_time_periods": 504, #currently assuming a booking window of 3 weeks: t = 3*7*24 = 504
         "num_products": 4,
         "num_price_options_per_product": 3,
         "max_feedback_delay": 3,
         "num_resources": 1,
-        "pacing_aggressiveness": 1.5  # <-- Tune this value. > 1.0 is more aggressive.
+        "pacing_aggressiveness": 0.75  # <-- Tune this value. > 1.0 is more aggressive.
     }
 
     # Generate a single timestamp for this entire batch of runs
@@ -772,7 +750,7 @@ if __name__ == '__main__':
 
             # --- THIS IS THE KEY FIX ---
             # Create a new simulator instance for each run to ensure it's fresh
-            simulator = Simulator(**sim_config, use_real_lp=True, use_ts_update=False)
+            simulator = Simulator(**sim_config, use_real_lp=True, use_ts_update=True)
             # ---
 
             # Get the dictionary of results

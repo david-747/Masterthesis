@@ -26,7 +26,7 @@ class CMAB:
                  total_time_periods: int,
                  # --- NEW ARGUMENT ---
                  demand_scaling_factor: float,
-                 pacing_aggressiveness: float = 1.0,  # <-- Add this
+                 pacing_aggressiveness: float = 0.75,  # <-- Add this
                  context_probabilities: dict['DomainContext', float] = None,
                  use_ts_update: bool = False):
         """
@@ -92,6 +92,8 @@ class CMAB:
         self.current_lp_solution_x_ksi_k = None  # Stores the result of LP optimization (Step 2)
 
         self.feedback_registry = {}
+        #Global sequence counter
+        self._feedback_counter: int = 0
 
     #at start of each period t, the simulator environment will call this method with any feedback that has arrived
     #CMAB simply passes this feedback along to self.agent.process_arrived_feedback(feedback_id, success)
@@ -140,7 +142,7 @@ class CMAB:
     #                          {context_object: {price_vector_id: probability_of_offering_this_price_vector}}
     def determine_pricing_policy_for_period(self,
                                               current_time_t: int,
-                                              current_inventory: np.ndarray):
+                                              resource_constraints_c_j: np.ndarray):
         """
         Performs Steps 1 and 2 of Algorithm 4 (delay-adapted):
         1. Sample theta(t) from the agent's current posteriors.
@@ -169,6 +171,8 @@ class CMAB:
             resource_constraints_c_j = self.initial_resource_inventory_I_j / self.total_time_periods_T
         '''
 
+        #Note: Budget calc moved to Simulator.py
+        '''
         # --- UPDATED BUDGET LOGIC ---
         if self.use_ts_update:
             # This logic is for when use_ts_update is True
@@ -184,6 +188,9 @@ class CMAB:
             base_budget = self.initial_resource_inventory_I_j / self.total_time_periods_T
             resource_constraints_c_j = base_budget * self.pacing_aggressiveness
         # --- END UPDATE ---
+        '''
+
+
 
         # Step 2: Optimize Prices Given Sampled Demand (Solve LP)
         # The LP solver will use sampled_theta_t to get d_ik(ksi|theta(t)).
@@ -192,7 +199,7 @@ class CMAB:
         # It will use self.resource_constraints_c_j for c_j.
         self.current_lp_solution_x_ksi_k = self.lp_solver(
             sampled_theta_t=sampled_theta_t,
-            resource_constraints_c_j=resource_constraints_c_j,
+            resource_constraints_c_j=resource_constraints_c_j, # Use the passed-in budget
             all_contexts=self.agent.all_contexts,
             all_products=self.all_products,
             all_price_indices=self.agent.all_price_indices,
@@ -289,7 +296,11 @@ class CMAB:
             for product_obj in self.all_products:
                 # Create a unique ID for this specific action. An f-string is a simple and effective way.
                 context_key = observed_realized_context.get_key()
-                feedback_id = f"t{current_time_t}-{context_key}-{product_obj.product_id}-{chosen_price_vector_id}"
+
+                self._feedback_counter += 1
+                seq = self._feedback_counter
+
+                feedback_id = f"t{current_time_t}-{context_key}-{product_obj.product_id}-{chosen_price_vector_id}-{seq}"
 
                 # --- ADD THIS DIAGNOSTIC LINE ---
                 #print(f"DEBUG (t={current_time_t}): Adding key to registry: {repr(feedback_id)}")

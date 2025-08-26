@@ -1,4 +1,5 @@
 import csv
+import json
 from datetime import datetime
 import os
 import random
@@ -18,14 +19,7 @@ class WtpScenarioSimulator:
     """
     A simulator designed to work with a fixed customer arrival scenario where each
     customer has a maximum Willingness-To-Pay (WTP).
-
-    The Oracle in this simulator has perfect foresight: it knows all customer
-    arrivals and their WTP in advance and calculates the maximum possible revenue
-    by cherry-picking the most profitable customers subject to capacity constraints.
-
-    The Agent operates without knowing the WTP and must learn pricing strategies
-    to maximize revenue. A customer purchase occurs if the agent's offered price
-    is less than or equal to the customer's maximum WTP.
+    ...
     """
 
     def __init__(self,
@@ -86,12 +80,28 @@ class WtpScenarioSimulator:
         self.pending_feedback = None
         self.current_time_t = 0
 
+    def _log_metric(self, row: dict):
+        """Append one metric row to in-memory list."""
+        self.metrics_records.append(row)
+
+    def _write_metrics_csv(self):
+        """Write all collected metric rows to CSV."""
+        if not self.metrics_csv_path or not self.metrics_records:
+            print("Warning: No metrics to write or CSV path not specified.")
+            return
+        fieldnames = sorted({k for r in self.metrics_records for k in r.keys()})
+        with open(self.metrics_csv_path, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(self.metrics_records)
+        print(f"Metrics successfully saved to '{self.metrics_csv_path}'")
+
     def _reset_for_new_run(self):
         """Resets the state of the simulator for a fresh run."""
         self.current_inventory = np.copy(self.initial_resource_inventory)
         self.pending_feedback = deque()
         self.current_time_t = 0
-        # Do not clear metrics here so we can log both oracle and agent runs into one file.
+        self.metrics_records = []  # Clear metrics for the new run
         self.agent = DelayedTSAgent(
             all_possible_contexts=self.all_contexts,
             all_possible_products=self.all_products,
@@ -139,57 +149,52 @@ class WtpScenarioSimulator:
         total_achieved_revenue = 0
         cumulative_revenue_over_time = []
 
-        total_arrivals_in_sim = sum(len(v) for v in self.arrivals_by_time.values())
+        total_arrivals_in_sim = len(self.arrival_schedule)
         remaining_arrivals_count = total_arrivals_in_sim
 
         for t in range(self.total_time_periods):
             self.current_time_t = t
-            arrivals_this_period = self.arrivals_by_time[t]
+            arrivals_this_period = self.arrivals_by_time.get(t, [])
             if self.verbose: print(
                 f"--- Agent Hour t = {t}, Inventory: {self.current_inventory}, Arrivals: {len(arrivals_this_period)} ---")
 
-            # --- Process delayed feedback from previous periods ---
             feedback_to_process = []
             while self.pending_feedback and self.pending_feedback[0][0] <= t:
                 feedback_to_process.append(self.pending_feedback.popleft())
             if feedback_to_process:
                 self.cmab.process_feedback_for_agent([(fid, s) for _, fid, s in feedback_to_process], t)
 
-            # --- Determine pricing policy for the current period ---
             if self.cmab.use_ts_update and remaining_arrivals_count > 0:
                 base_budget = np.maximum(self.current_inventory, 0) / remaining_arrivals_count
                 resource_constraints = base_budget * self.pacing_aggressiveness
             else:
-                # Fallback pacing
                 resource_constraints = self.initial_resource_inventory / self.total_time_periods
 
             self.cmab.determine_pricing_policy_for_period(t, resource_constraints)
 
-            # --- Process each arrival for the current period ---
             for arrival_data in arrivals_this_period:
                 observed_context = random.choice(self.all_contexts)
                 bundle = arrival_data['bundle']
                 max_wtp = arrival_data['max_wtp']
 
-                # Agent selects a price vector (action)
                 chosen_pv_id, feedback_map = self.cmab.select_action_and_record_for_feedback(observed_context, t)
 
-                # Calculate the offered price for the bundle
+                offer_made = chosen_pv_id is not None
                 offered_price = 0.0
-                if chosen_pv_id is not None:
+                if offer_made:
                     price_vector = self.all_price_vectors_map[chosen_pv_id]
                     for pid, qty in bundle.items():
                         if qty > 0:
                             product = next(p for p in self.all_products if p.product_id == pid)
                             offered_price += price_vector.get_price_object(product).amount * qty
 
-                # Customer decides to buy if offered price is within their WTP
-                buy = (chosen_pv_id is not None) and (offered_price <= max_wtp)
+                buy = offer_made and (offered_price <= max_wtp)
 
                 revenue_inc = 0.0
                 success = False
+                inventory_before = self.current_inventory[0]
+
                 if buy:
-                    # Check inventory
                     total_required = np.zeros_like(self.current_inventory)
                     for product_id, qty in bundle.items():
                         if qty <= 0: continue
@@ -198,13 +203,20 @@ class WtpScenarioSimulator:
 
                     if np.all(self.current_inventory >= total_required):
                         self.current_inventory -= total_required
-                        revenue_inc = offered_price  # Revenue is the price they paid
+                        revenue_inc = offered_price
                         total_achieved_revenue += revenue_inc
                         success = True
 
-                # Record feedback for the agent to learn from
-                # --- FIX IS HERE ---
-                # Only try to record feedback if a feedback map was generated
+                self._log_metric({
+                    "phase": "agent", "t": t, "arrival_idx": arrival_data['arrival_idx'],
+                    "inventory_before": inventory_before,
+                    "inventory_after": self.current_inventory[0],
+                    "offer_made": int(offer_made), "chosen_pv_id": chosen_pv_id,
+                    "offered_price": offered_price, "customer_max_wtp": max_wtp,
+                    "accepted": int(success), "revenue_inc": revenue_inc,
+                    "pacing_budget": resource_constraints[0]
+                })
+
                 if feedback_map is not None:
                     delay = t + random.randint(1, self.max_feedback_delay + 1)
                     for _, feedback_id in feedback_map.items():
@@ -217,15 +229,9 @@ class WtpScenarioSimulator:
         return total_achieved_revenue, cumulative_revenue_over_time
 
     def _run_oracle_simulation(self):
-        """
-        Runs the perfect foresight oracle.
-        The oracle knows all arrivals and their WTP in advance. It sorts all
-        potential customers by their WTP and accepts the highest-paying ones
-        until capacity is exhausted.
-        """
+        """Runs the perfect foresight oracle."""
         if self.verbose: print("--- Running Oracle Simulation for Benchmark ---")
 
-        # 1. Calculate resource consumption for each potential arrival
         for arrival in self.arrival_schedule:
             required_resources = np.zeros(self.num_resources)
             for pid, qty in arrival['bundle'].items():
@@ -234,42 +240,88 @@ class WtpScenarioSimulator:
                     required_resources += self.resource_consumption_matrix[idx, :] * qty
             arrival['resources_needed'] = required_resources
 
-        # 2. Sort all arrivals by their maximum willingness-to-pay in descending order
         sorted_arrivals = sorted(self.arrival_schedule, key=lambda x: x['max_wtp'], reverse=True)
 
-        # 3. "Cherry-pick" the best customers until capacity runs out
         oracle_inventory = np.copy(self.initial_resource_inventory)
         oracle_revenue = 0.0
 
         for arrival in sorted_arrivals:
+            accepted = False
+            revenue_inc = 0.0
+            inventory_before = oracle_inventory[0]
             if np.all(oracle_inventory >= arrival['resources_needed']):
-                # Accept this customer
                 oracle_inventory -= arrival['resources_needed']
                 oracle_revenue += arrival['max_wtp']
+                accepted = True
+                revenue_inc = arrival['max_wtp']
+
+            self._log_metric({
+                "phase": "oracle", "t": arrival['t'], "arrival_idx": arrival['arrival_idx'],
+                "inventory_before": inventory_before, "inventory_after": oracle_inventory[0],
+                "offer_made": 1, "offered_price": arrival['max_wtp'], "customer_max_wtp": arrival['max_wtp'],
+                "accepted": int(accepted), "revenue_inc": revenue_inc,
+            })
 
         if self.verbose:
             print(f"--- Oracle Simulation Finished. Benchmark Revenue: ${oracle_revenue:,.2f} ---")
 
-        # The oracle calculation is static, so we return a constant cumulative revenue for plotting
         return oracle_revenue, [oracle_revenue] * self.total_time_periods
 
-    def run_and_evaluate(self):
+    # --- THIS METHOD CONTAINS THE PRIMARY FIX ---
+    def run_and_evaluate(self, summary_save_path: str | None = None):
         """Calculates benchmark, runs learning agent, and returns performance metrics."""
-        # Note: Oracle is run first as it doesn't have a time-based cumulative plot anymore
+        # 1. Reset state and run the oracle. The oracle's data is now in self.metrics_records.
+        self._reset_for_new_run()
         total_benchmark_revenue, cumulative_benchmark_revenue = self._run_oracle_simulation()
 
+        # 2. IMPORTANT: Save the oracle's data before resetting for the agent.
+        oracle_metrics = self.metrics_records.copy()
+
+        # 3. Now, reset the state for a clean agent run.
         self._reset_for_new_run()
         total_achieved_revenue, cumulative_achieved_revenue = self.run()
 
+        # 4. Save the agent's data.
+        agent_metrics = self.metrics_records.copy()
+
+        # 5. Combine BOTH sets of data and write the final CSV.
+        self.metrics_records = oracle_metrics + agent_metrics
+        self._write_metrics_csv()
+
         regret = total_benchmark_revenue - total_achieved_revenue
         performance_percentage = (
-                                             total_achieved_revenue / total_benchmark_revenue) * 100 if total_benchmark_revenue > 0 else 0.0
+                                         total_achieved_revenue / total_benchmark_revenue) * 100 if total_benchmark_revenue > 0 else 0.0
 
+        '''
         print(f"\n--- Performance Summary for Scenario: {os.path.basename(self.customer_scenario_path)} ---")
         print(f"Achieved Revenue: ${total_achieved_revenue:,.2f}")
         print(f"Benchmark (Oracle) Revenue: ${total_benchmark_revenue:,.2f}")
         print(f"Regret (Cost of Learning): ${regret:,.2f}")
         print(f"Percentage of Optimal Revenue Achieved: {performance_percentage:.2f}%")
+        '''
+
+        # --- CONSOLE OUTPUT ---
+        summary_header = f"\n--- Performance Summary for Scenario: {os.path.basename(self.customer_scenario_path)} ---"
+        summary_lines = [
+            f"Achieved Revenue: ${total_achieved_revenue:,.2f}",
+            f"Benchmark (Oracle) Revenue: ${total_benchmark_revenue:,.2f}",
+            f"Regret (Cost of Learning): ${regret:,.2f}",
+            f"Percentage of Optimal Revenue Achieved: {performance_percentage:.2f}%"
+        ]
+
+        print(summary_header)
+        for line in summary_lines:
+            print(line)
+
+        # --- WRITE SUMMARY TO FILE ---
+        if summary_save_path:
+            try:
+                with open(summary_save_path, 'w') as f:
+                    f.write(summary_header.strip() + "\n")
+                    f.write("\n".join(summary_lines) + "\n")
+                print(f"\nSummary report saved to '{summary_save_path}'")
+            except Exception as e:
+                print(f"Error: Could not write summary to file: {e}")
 
         return {
             "benchmark_revenue": total_benchmark_revenue, "achieved_revenue": total_achieved_revenue,
@@ -277,27 +329,33 @@ class WtpScenarioSimulator:
             "cumulative_benchmark": cumulative_benchmark_revenue, "cumulative_achieved": cumulative_achieved_revenue
         }
 
-    def plot_cumulative_revenue(self, results):
+    def plot_cumulative_revenue(self, results, save_path):
         """Plots the cumulative revenue of the agent vs the oracle's final revenue."""
         plt.figure(figsize=(12, 7))
 
-        # Agent's cumulative revenue
-        plt.plot(results['cumulative_achieved'], label='Agent Cumulative Revenue', color='blue')
-
-        # Oracle's final revenue as a horizontal line
+        plt.plot(results['cumulative_achieved'], label=f"Agent Cumulative Revenue (${results['achieved_revenue']:,.0f})", color='blue')
         plt.axhline(y=results['benchmark_revenue'], color='r', linestyle='--',
                     label=f"Oracle Max Revenue (${results['benchmark_revenue']:,.0f})")
 
-        plt.title(
-            f'Agent Performance vs. Perfect Foresight Oracle\nScenario: {os.path.basename(self.customer_scenario_path)}')
+        # --- NEW: ENHANCED TITLE ---
+        achieved_rev = results['achieved_revenue']
+        performance_pct = results['performance_percentage']
+        title_text = (
+            f'Agent Performance vs. Perfect Foresight Oracle\n'
+            f'Scenario: {os.path.basename(self.customer_scenario_path)}\n'
+            f'Final Agent Revenue: {performance_pct:.2f}% of Oracle'
+        )
+        plt.title(title_text, fontsize=14)
+
+        #plt.title(
+        #    f'Agent Performance vs. Perfect Foresight Oracle\nScenario: {os.path.basename(self.customer_scenario_path)}')
         plt.xlabel('Time Period (t)')
         plt.ylabel('Cumulative Revenue ($)')
         plt.legend()
         plt.grid(True, linestyle='--', alpha=0.6)
 
-        plot_filename = f"revenue_plot_{os.path.basename(self.customer_scenario_path).replace('.csv', '')}.png"
-        plt.savefig(plot_filename)
-        print(f"\nRevenue plot saved to '{plot_filename}'")
+        plt.savefig(save_path)
+        print(f"\nRevenue plot saved to '{save_path}'")
         plt.close()
 
     # --- HELPER METHODS (mostly unchanged) ---
@@ -331,13 +389,9 @@ def generate_wtp_scenario_file(filepath="customer_scenario_wtp.csv", total_hours
     """Generates a CSV file with customer arrivals and their max WTP."""
     print(f"Generating new customer scenario file at '{filepath}'...")
 
-    # Base prices for calculating WTP (from "Standard" price vector)
     base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
     product_ids = list(base_prices.keys())
-
-    # Poisson lambdas for generating product quantities in a bundle
     poisson_lambdas = {'TEU': 1.2, 'FEU': 0.6, 'HC': 0.4, 'REEF': 0.2}
-
     header = ['t', 'arrival_idx', 'max_wtp'] + product_ids
 
     with open(filepath, 'w', newline='') as f:
@@ -348,16 +402,11 @@ def generate_wtp_scenario_file(filepath="customer_scenario_wtp.csv", total_hours
         for t in range(total_hours):
             num_arrivals = np.random.poisson(avg_arrivals_per_hour)
             for arr_idx in range(num_arrivals):
-                # Generate bundle
                 bundle = {pid: np.random.poisson(poisson_lambdas[pid]) for pid in product_ids}
-                # Ensure at least one product is requested
                 if all(v == 0 for v in bundle.values()):
                     bundle[random.choice(product_ids)] = 1
 
-                # Calculate bundle's base price
                 bundle_base_price = sum(base_prices[pid] * qty for pid, qty in bundle.items())
-
-                # WTP is a random multiplier on the base price (e.g., 1.0x to 1.5x)
                 wtp_multiplier = random.uniform(1.0, 1.5)
                 max_wtp = bundle_base_price * wtp_multiplier
 
@@ -371,29 +420,46 @@ def generate_wtp_scenario_file(filepath="customer_scenario_wtp.csv", total_hours
 
 # --- Main execution block ---
 if __name__ == '__main__':
-    SCENARIO_FILE = "customer_scenario_wtp.csv"
+    output_base_dir = "simulation_outputs"
+    if not os.path.exists(output_base_dir):
+        os.makedirs(output_base_dir)
 
-    # 1. Generate the scenario file first (if it doesn't exist)
+    batch_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_folder = os.path.join(output_base_dir, f"run_{batch_timestamp}")
+    os.makedirs(run_folder)
+
+    SCENARIO_FILE = "customer_scenario_wtp.csv"
     if not os.path.exists(SCENARIO_FILE):
         generate_wtp_scenario_file(filepath=SCENARIO_FILE)
 
-    # 2. Define simulation config
     sim_config = {
         "customer_scenario_path": SCENARIO_FILE,
         "num_products": 4,
         "num_price_options_per_product": 3,
         "max_feedback_delay": 3,
         "num_resources": 1,
-        "pacing_aggressiveness": 0.5,  # This pacing logic can still be improved
+        "pacing_aggressiveness": 0.5,
         "use_ts_update": True,
         "use_real_lp": True,
-        "verbose": False,  # Set to True for detailed hour-by-hour logs
+        "verbose": False,
     }
 
-    # 3. Create simulator and run the evaluation
-    simulator = WtpScenarioSimulator(**sim_config)
-    results = simulator.run_and_evaluate()
+    config_save_path = os.path.join(run_folder, "config.json")
+    with open(config_save_path, 'w') as f:
+        json.dump(sim_config, f, indent=4)
+    print(f"Configuration saved to '{config_save_path}'")
 
-    # 4. Plot the results
+    pacing_str = str(sim_config["pacing_aggressiveness"]).replace('.', '_')
+    metrics_csv_path = os.path.join(run_folder, f"metrics_log_pacing_{pacing_str}.csv")
+    sim_config["metrics_csv_path"] = metrics_csv_path
+
+    simulator = WtpScenarioSimulator(**sim_config)
+    #results = simulator.run_and_evaluate()
+
+    # --- NEW: DEFINE SUMMARY PATH AND PASS TO METHOD ---
+    summary_txt_path = os.path.join(run_folder, "summary.txt")
+    results = simulator.run_and_evaluate(summary_save_path=summary_txt_path)
+
     if results:
-        simulator.plot_cumulative_revenue(results)
+        plot_filename = os.path.join(run_folder, f"revenue_plot_pacing_{pacing_str}.png")
+        simulator.plot_cumulative_revenue(results, save_path=plot_filename)

@@ -292,13 +292,11 @@ class WtpScenarioSimulator:
         performance_percentage = (
                                          total_achieved_revenue / total_benchmark_revenue) * 100 if total_benchmark_revenue > 0 else 0.0
 
-        '''
-        print(f"\n--- Performance Summary for Scenario: {os.path.basename(self.customer_scenario_path)} ---")
-        print(f"Achieved Revenue: ${total_achieved_revenue:,.2f}")
-        print(f"Benchmark (Oracle) Revenue: ${total_benchmark_revenue:,.2f}")
-        print(f"Regret (Cost of Learning): ${regret:,.2f}")
-        print(f"Percentage of Optimal Revenue Achieved: {performance_percentage:.2f}%")
-        '''
+        # --- NEW: CALCULATE INVENTORY UTILIZATION ---
+        initial_inv = self.initial_resource_inventory[0]
+        final_inv = self.current_inventory[0]
+        inventory_consumed = initial_inv - final_inv
+        inventory_utilization_pct = (inventory_consumed / initial_inv) * 100 if initial_inv > 0 else 0.0
 
         # --- CONSOLE OUTPUT ---
         summary_header = f"\n--- Performance Summary for Scenario: {os.path.basename(self.customer_scenario_path)} ---"
@@ -306,7 +304,8 @@ class WtpScenarioSimulator:
             f"Achieved Revenue: ${total_achieved_revenue:,.2f}",
             f"Benchmark (Oracle) Revenue: ${total_benchmark_revenue:,.2f}",
             f"Regret (Cost of Learning): ${regret:,.2f}",
-            f"Percentage of Optimal Revenue Achieved: {performance_percentage:.2f}%"
+            f"Percentage of Optimal Revenue Achieved: {performance_percentage:.2f}%",
+            f"Inventory Utilization: {inventory_utilization_pct:.2f}% ({int(inventory_consumed):,} of {int(initial_inv):,} units consumed)" # <-- ADDED LINE
         ]
 
         print(summary_header)
@@ -329,33 +328,102 @@ class WtpScenarioSimulator:
             "cumulative_benchmark": cumulative_benchmark_revenue, "cumulative_achieved": cumulative_achieved_revenue
         }
 
-    def plot_cumulative_revenue(self, results, save_path):
-        """Plots the cumulative revenue of the agent vs the oracle's final revenue."""
-        plt.figure(figsize=(12, 7))
+    def plot_cumulative_revenue(self, results, metrics_data, save_path):
+        """
+        Plots cumulative revenue (left y-axis) and inventory depletion (right y-axis).
+        """
+        # --- DATA PREPARATION FOR INVENTORY PLOT ---
+        agent_metrics = sorted([row for row in metrics_data if row['phase'] == 'agent'], key=lambda x: x['t'])
 
-        plt.plot(results['cumulative_achieved'], label=f"Agent Cumulative Revenue (${results['achieved_revenue']:,.0f})", color='blue')
-        plt.axhline(y=results['benchmark_revenue'], color='r', linestyle='--',
+        inventory_over_time = {}
+        if agent_metrics:
+            initial_inventory = self.initial_resource_inventory[0]
+            inventory_over_time[-1] = initial_inventory
+            for row in agent_metrics:
+                inventory_over_time[row['t']] = row['inventory_after']
+
+        inv_time_steps = sorted(inventory_over_time.keys())
+        inv_levels = [inventory_over_time[t] for t in inv_time_steps]
+
+        final_inv_level = inv_levels[-1] if inv_levels else 0
+        initial_inv_level = self.initial_resource_inventory[0]
+        remaining_pct = (final_inv_level / initial_inv_level) * 100 if initial_inv_level > 0 else 0
+        inventory_label = f'Agent Remaining Inventory ({remaining_pct:.1f}% left)'
+
+        # --- PLOTTING ---
+        fig, ax1 = plt.subplots(figsize=(11, 11))
+
+        # AXIS 1: Revenue (Left)
+        color_revenue = 'tab:blue'
+        ax1.set_xlabel('Time Period (t)', fontsize=15, fontweight='bold')
+        ax1.set_ylabel('Cumulative Revenue ($)', color=color_revenue, fontsize=15, fontweight='bold')
+        ax1.plot(results['cumulative_achieved'],
+                 label=f"Agent Cumulative Revenue (${results['achieved_revenue']:,.0f})", color=color_revenue,
+                 linewidth=2)
+        ax1.axhline(y=results['benchmark_revenue'], color='red', linestyle='--',
                     label=f"Oracle Max Revenue (${results['benchmark_revenue']:,.0f})")
+        # --- NEW: Added labelsize for axis numbers ---
+        ax1.tick_params(axis='y', labelcolor=color_revenue, labelsize=15)
+        ax1.tick_params(axis='x', labelsize=15)  # For the x-axis numbers
+        ax1.grid(True, linestyle='--', alpha=0.6)
+        ax1.set_xlim(left=0)
+        ax1.set_ylim(bottom=0)
 
-        # --- NEW: ENHANCED TITLE ---
-        achieved_rev = results['achieved_revenue']
+        # AXIS 2: Inventory (Right)
+        ax2 = ax1.twinx()
+        color_inventory = 'tab:green'
+        ax2.set_ylabel('Remaining Inventory (Units)', color=color_inventory, fontsize=15, fontweight='bold')
+        ax2.plot(inv_time_steps, inv_levels, label=inventory_label, color=color_inventory, linestyle='--', linewidth=2)
+        # --- NEW: Added labelsize for axis numbers ---
+        ax2.tick_params(axis='y', labelcolor=color_inventory, labelsize=15)
+        ax2.set_ylim(bottom=0)
+        ax2.set_ylim(top=initial_inv_level * 1.05)
+
+        '''
+        # --- TITLE AND LEGEND ---
         performance_pct = results['performance_percentage']
         title_text = (
-            f'Agent Performance vs. Perfect Foresight Oracle\n'
+            f'Agent Performance: Revenue vs. Inventory Depletion\n'
             f'Scenario: {os.path.basename(self.customer_scenario_path)}\n'
             f'Final Agent Revenue: {performance_pct:.2f}% of Oracle'
         )
-        plt.title(title_text, fontsize=14)
+        plt.title(title_text, fontsize=16, pad=20)
 
-        #plt.title(
-        #    f'Agent Performance vs. Perfect Foresight Oracle\nScenario: {os.path.basename(self.customer_scenario_path)}')
-        plt.xlabel('Time Period (t)')
-        plt.ylabel('Cumulative Revenue ($)')
-        plt.legend()
-        plt.grid(True, linestyle='--', alpha=0.6)
+        lines, labels = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        # --- NEW: Added fontsize for the legend text ---
+        ax2.legend(lines + lines2, labels + labels2, loc='best', fontsize=15)
+
+        fig.tight_layout()
+        '''
+
+        # --- TITLE AND LEGEND ---
+        performance_pct = results['performance_percentage']
+        title_text = (
+            f'Agent Performance: Revenue vs. Inventory Depletion\n'
+            f'Scenario: {os.path.basename(self.customer_scenario_path)}\n'
+            f'Final Agent Revenue: {performance_pct:.2f}% of Oracle'
+        )
+        plt.title(title_text, fontsize=16, pad=20)
+
+        lines, labels = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+
+        # Legend below the plot
+        ax2.legend(
+            lines + lines2,
+            labels + labels2,
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.15),  # center below the axes
+            fontsize=16,
+            ncol=2,  # spread items into 2 columns (adjust as needed)
+            frameon=False  # optional: no legend box
+        )
+
+        fig.tight_layout(rect=[0, 0.02, 1, 1])  # add bottom margin for legend
 
         plt.savefig(save_path)
-        print(f"\nRevenue plot saved to '{save_path}'")
+        print(f"\nRevenue and inventory plot saved to '{save_path}'")
         plt.close()
 
     # --- HELPER METHODS (mostly unchanged) ---
@@ -438,7 +506,7 @@ if __name__ == '__main__':
         "num_price_options_per_product": 3,
         "max_feedback_delay": 3,
         "num_resources": 1,
-        "pacing_aggressiveness": 0.5,
+        "pacing_aggressiveness": 4,
         "use_ts_update": True,
         "use_real_lp": True,
         "verbose": False,
@@ -462,4 +530,5 @@ if __name__ == '__main__':
 
     if results:
         plot_filename = os.path.join(run_folder, f"revenue_plot_pacing_{pacing_str}.png")
-        simulator.plot_cumulative_revenue(results, save_path=plot_filename)
+        # --- UPDATED CALL: Pass the simulator's metrics_records to the plot function ---
+        simulator.plot_cumulative_revenue(results, simulator.metrics_records, save_path=plot_filename)

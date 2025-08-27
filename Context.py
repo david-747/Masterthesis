@@ -177,3 +177,5 @@ if __name__ == '__main__':
     print(f"Season.HIGH: {Season.HIGH}")
     print(f"Season.HIGH.name: {Season.HIGH.name}")   # 'HIGH'
     print(f"Season.HIGH.value: {Season.HIGH.value}") # 'high'
+
+    

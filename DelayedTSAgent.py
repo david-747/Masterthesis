@@ -86,3 +86,37 @@ class DelayedTSAgent:
 
         # Store the new parameters back into our beliefs dictionary.
         self.posterior_params[key] = (alpha, beta)
+
+    # In DelayedTSAgent.py, inside the DelayedTSAgent class
+    def get_beliefs(self):
+        """
+        Returns the learned alpha and beta parameters for each context-action pair.
+        """
+        beliefs = {}
+        for context in self.all_contexts:
+            context_key_for_storage = context.get_key()
+            context_str = str(context)  # For JSON serialization
+            beliefs[context_str] = {}
+
+            for product in self.all_products:
+                product_id_for_storage = product.product_id
+
+                for pv_index in self.all_price_indices:
+                    # Construct the internal key exactly as the agent does
+                    internal_key = (context_key_for_storage, product_id_for_storage, pv_index)
+
+                    # --- THE FIX ---
+                    # Get the (alpha, beta) tuple from the correct variable: self.posterior_params
+                    alpha, beta = self.posterior_params.get(internal_key, (1, 1))
+                    # --- END FIX ---
+
+                    # The arm key for the output file
+                    arm_key_output = f"{product.product_id}-{pv_index}"
+                    prob = alpha / (alpha + beta)
+
+                    beliefs[context_str][arm_key_output] = {
+                        'alpha': alpha,
+                        'beta': beta,
+                        'prob_success': prob
+                    }
+        return beliefs

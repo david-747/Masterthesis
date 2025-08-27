@@ -309,7 +309,7 @@ class WTPSimulator:
 
 # --- Main Execution Block (Unchanged) ---
 if __name__ == '__main__':
-    output_filename = "wtp_simulation_results.csv"
+    output_filename = "../wtp_simulation_results.csv"
     num_simulation_runs = 10
     sim_config = {
         "total_time_periods": 504,

@@ -708,7 +708,7 @@ if __name__ == '__main__':
     '''
 
     # --- Configuration for this Batch of Runs ---
-    output_filename = "simulation_results.csv"
+    output_filename = "../simulation_results.csv"
     num_simulation_runs = 10
     sim_config = {
         "total_time_periods": 504, #currently assuming a booking window of 3 weeks: t = 3*7*24 = 504

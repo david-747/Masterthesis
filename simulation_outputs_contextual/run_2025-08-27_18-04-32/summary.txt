@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: customer_scenario_contextual_wtp.csv ---
+Achieved Revenue: $1,389,200.00
+Benchmark (Oracle) Revenue: $1,595,633.72
+Regret (Cost of Learning): $206,433.72
+Percentage of Optimal Revenue Achieved: 87.06%
+Inventory Utilization: 100.00% (450 of 450 units consumed)

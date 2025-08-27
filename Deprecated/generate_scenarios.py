@@ -96,18 +96,18 @@ if __name__ == '__main__':
     TOTAL_PERIODS = 504  # 3 weeks * 7 days/week * 24 hours/day
 
     # Create a directory to store the scenarios if it doesn't exist
-    if not os.path.exists('scenarios'):
-        os.makedirs('scenarios')
+    if not os.path.exists('../scenarios'):
+        os.makedirs('../scenarios')
 
     # --- Generate all scenario files ---
     generate_normal_rate(
-        filename="scenarios/normal_rate.csv",
+        filename="../scenarios/normal_rate.csv",
         total_periods=TOTAL_PERIODS,
         mean_arrivals=10
     )
 
     generate_demand_shock(
-        filename="scenarios/demand_shock.csv",
+        filename="../scenarios/demand_shock.csv",
         total_periods=TOTAL_PERIODS,
         normal_mean=10,
         shock_period=TOTAL_PERIODS // 2, # Shock happens halfway through
@@ -115,14 +115,14 @@ if __name__ == '__main__':
     )
 
     generate_increasing_demand(
-        filename="scenarios/increasing_demand.csv",
+        filename="../scenarios/increasing_demand.csv",
         total_periods=TOTAL_PERIODS,
         start_rate=2,
         end_rate=25
     )
 
     generate_decreasing_demand(
-        filename="scenarios/decreasing_demand.csv",
+        filename="../scenarios/decreasing_demand.csv",
         total_periods=TOTAL_PERIODS,
         start_rate=25,
         end_rate=2

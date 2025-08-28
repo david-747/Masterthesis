@@ -301,11 +301,27 @@ class ContextualWtpScenarioSimulator:
                     self.detailed_records.append(detailed_entry)
                 # --- END DETAILED LOG ---
 
-
+                '''
                 if feedback_map is not None:
                     delay = t + random.randint(1, self.max_feedback_delay + 1)
                     for _, feedback_id in feedback_map.items():
                         self.pending_feedback.append((delay, feedback_id, success))
+                '''
+
+                if feedback_map is not None:
+                    delay = t + random.randint(1, self.max_feedback_delay + 1)
+                    # NEW: Iterate through the customer's actual requested bundle
+                    for product_id, quantity in bundle.items():
+                        if quantity > 0:
+                            # Find the Product object corresponding to the product_id
+                            product_obj = self.all_products[self.product_to_idx_map[product_id]]
+
+                            # Get the specific feedback_id for this requested product
+                            feedback_id = feedback_map.get(product_obj)
+
+                            if feedback_id:
+                                # Schedule feedback ONLY for this item
+                                self.pending_feedback.append((delay, feedback_id, success))
 
             remaining_arrivals_count -= len(arrivals_this_period)
             self.pending_feedback = deque(sorted(list(self.pending_feedback)))
@@ -584,8 +600,8 @@ if __name__ == '__main__':
     os.makedirs(run_folder)
 
     # --- Use the new scenario generation function ---
-    SCENARIO_FILE = "scenarios/customer_scenario_contextual_wtp.csv"
-    #SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
+    #SCENARIO_FILE = "scenarios/customer_scenario_contextual_wtp.csv"
+    SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
 
     if not os.path.exists(SCENARIO_FILE):
         generate_contextual_wtp_scenario(

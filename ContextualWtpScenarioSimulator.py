@@ -584,8 +584,8 @@ if __name__ == '__main__':
     os.makedirs(run_folder)
 
     # --- Use the new scenario generation function ---
-    #SCENARIO_FILE = "scenarios/customer_scenario_contextual_wtp.csv"
-    SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
+    SCENARIO_FILE = "scenarios/customer_scenario_contextual_wtp.csv"
+    #SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
 
     if not os.path.exists(SCENARIO_FILE):
         generate_contextual_wtp_scenario(

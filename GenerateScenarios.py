@@ -28,12 +28,22 @@ try:
     df_low_season['FEU'] = (df_low_season['FEU'] * 1.1).round().astype(int)
     df_low_season['HC'] = (df_low_season['HC'] * 1.1).round().astype(int)
 
-    # Save the new, more realistic scenario to a CSV file
+    # 5. --- NEW: FINAL SAFEGUARD ---
+    # After all adjustments, remove any customers with no requested products.
+    product_columns = ['TEU', 'FEU', 'HC', 'REEF']
+
+    # Keep only the rows where the total number of products is greater than 0
+    customers_before_cleaning = len(df_low_season)
+    df_low_season = df_low_season[df_low_season[product_columns].sum(axis=1) > 0]
+    customers_after_cleaning = len(df_low_season)
+
+    # Save the new, cleaned scenario to a CSV file
     df_low_season.to_csv(low_season_scenario_file, index=False)
 
     print(f"Successfully created '{low_season_scenario_file}'")
     print(f"Original number of arrivals: {len(df)}")
-    print(f"New number of arrivals for low season: {len(df_low_season)}")
+    print(f"Arrivals after sampling: {customers_before_cleaning}")
+    print(f"Arrivals after cleaning zero-product customers: {customers_after_cleaning}")
 
 except FileNotFoundError:
     print(f"Error: '{original_scenario_file}' not found. Please ensure this file is in the same directory as the script.")

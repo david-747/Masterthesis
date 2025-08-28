@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: low_season_customer_scenario_contextual_wtp.csv ---
+Achieved Revenue: $668,525.00
+Benchmark (Oracle) Revenue: $1,184,448.48
+Regret (Cost of Learning): $515,923.48
+Percentage of Optimal Revenue Achieved: 56.44%
+Inventory Utilization: 65.11% (293 of 450 units consumed)

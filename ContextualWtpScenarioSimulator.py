@@ -332,12 +332,12 @@ class ContextualWtpScenarioSimulator:
                 accepted = True
                 revenue_inc = arrival['max_wtp']
 
-            self._log_metric({
-                "phase": "oracle", "t": arrival['t'], "arrival_idx": arrival['arrival_idx'],
-                "inventory_before": inventory_before, "inventory_after": oracle_inventory[0],
-                "offer_made": 1, "offered_price": arrival['max_wtp'], "customer_max_wtp": arrival['max_wtp'],
-                "accepted": int(accepted), "revenue_inc": revenue_inc,
-            })
+                self._log_metric({
+                    "phase": "oracle", "t": arrival['t'], "arrival_idx": arrival['arrival_idx'],
+                    "inventory_before": inventory_before, "inventory_after": oracle_inventory[0],
+                    "offer_made": 1, "offered_price": arrival['max_wtp'], "customer_max_wtp": arrival['max_wtp'],
+                    "accepted": int(accepted), "revenue_inc": revenue_inc,
+                })
 
         if self.verbose:
             print(f"--- Oracle Simulation Finished. Benchmark Revenue: ${oracle_revenue:,.2f} ---")
@@ -593,7 +593,7 @@ if __name__ == '__main__':
         "num_price_options_per_product": 3,
         "max_feedback_delay": 3,
         "num_resources": 1,
-        "pacing_aggressiveness": 4,
+        "pacing_aggressiveness": 8,
         "use_ts_update": True,
         "use_real_lp": True,
         "verbose": False,

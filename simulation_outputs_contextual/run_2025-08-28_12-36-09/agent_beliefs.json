@@ -1,0 +1,746 @@
+{
+    "Context(Season: low, Customer: new, Commodity: high)": {
+        "TEU-0": {
+            "alpha": 3,
+            "beta": 11,
+            "prob_success": 0.21428571428571427
+        },
+        "TEU-1": {
+            "alpha": 21,
+            "beta": 101,
+            "prob_success": 0.1721311475409836
+        },
+        "TEU-2": {
+            "alpha": 5,
+            "beta": 43,
+            "prob_success": 0.10416666666666667
+        },
+        "FEU-0": {
+            "alpha": 3,
+            "beta": 11,
+            "prob_success": 0.21428571428571427
+        },
+        "FEU-1": {
+            "alpha": 21,
+            "beta": 101,
+            "prob_success": 0.1721311475409836
+        },
+        "FEU-2": {
+            "alpha": 5,
+            "beta": 43,
+            "prob_success": 0.10416666666666667
+        },
+        "HC-0": {
+            "alpha": 3,
+            "beta": 11,
+            "prob_success": 0.21428571428571427
+        },
+        "HC-1": {
+            "alpha": 21,
+            "beta": 101,
+            "prob_success": 0.1721311475409836
+        },
+        "HC-2": {
+            "alpha": 5,
+            "beta": 43,
+            "prob_success": 0.10416666666666667
+        },
+        "REEF-0": {
+            "alpha": 3,
+            "beta": 11,
+            "prob_success": 0.21428571428571427
+        },
+        "REEF-1": {
+            "alpha": 21,
+            "beta": 101,
+            "prob_success": 0.1721311475409836
+        },
+        "REEF-2": {
+            "alpha": 5,
+            "beta": 43,
+            "prob_success": 0.10416666666666667
+        }
+    },
+    "Context(Season: low, Customer: new, Commodity: low)": {
+        "TEU-0": {
+            "alpha": 19,
+            "beta": 112,
+            "prob_success": 0.1450381679389313
+        },
+        "TEU-1": {
+            "alpha": 8,
+            "beta": 59,
+            "prob_success": 0.11940298507462686
+        },
+        "TEU-2": {
+            "alpha": 5,
+            "beta": 47,
+            "prob_success": 0.09615384615384616
+        },
+        "FEU-0": {
+            "alpha": 19,
+            "beta": 112,
+            "prob_success": 0.1450381679389313
+        },
+        "FEU-1": {
+            "alpha": 8,
+            "beta": 59,
+            "prob_success": 0.11940298507462686
+        },
+        "FEU-2": {
+            "alpha": 5,
+            "beta": 47,
+            "prob_success": 0.09615384615384616
+        },
+        "HC-0": {
+            "alpha": 19,
+            "beta": 112,
+            "prob_success": 0.1450381679389313
+        },
+        "HC-1": {
+            "alpha": 8,
+            "beta": 59,
+            "prob_success": 0.11940298507462686
+        },
+        "HC-2": {
+            "alpha": 5,
+            "beta": 47,
+            "prob_success": 0.09615384615384616
+        },
+        "REEF-0": {
+            "alpha": 19,
+            "beta": 112,
+            "prob_success": 0.1450381679389313
+        },
+        "REEF-1": {
+            "alpha": 8,
+            "beta": 59,
+            "prob_success": 0.11940298507462686
+        },
+        "REEF-2": {
+            "alpha": 5,
+            "beta": 47,
+            "prob_success": 0.09615384615384616
+        }
+    },
+    "Context(Season: low, Customer: recurring, Commodity: high)": {
+        "TEU-0": {
+            "alpha": 11,
+            "beta": 38,
+            "prob_success": 0.22448979591836735
+        },
+        "TEU-1": {
+            "alpha": 9,
+            "beta": 41,
+            "prob_success": 0.18
+        },
+        "TEU-2": {
+            "alpha": 2,
+            "beta": 15,
+            "prob_success": 0.11764705882352941
+        },
+        "FEU-0": {
+            "alpha": 11,
+            "beta": 38,
+            "prob_success": 0.22448979591836735
+        },
+        "FEU-1": {
+            "alpha": 9,
+            "beta": 41,
+            "prob_success": 0.18
+        },
+        "FEU-2": {
+            "alpha": 2,
+            "beta": 15,
+            "prob_success": 0.11764705882352941
+        },
+        "HC-0": {
+            "alpha": 11,
+            "beta": 38,
+            "prob_success": 0.22448979591836735
+        },
+        "HC-1": {
+            "alpha": 9,
+            "beta": 41,
+            "prob_success": 0.18
+        },
+        "HC-2": {
+            "alpha": 2,
+            "beta": 15,
+            "prob_success": 0.11764705882352941
+        },
+        "REEF-0": {
+            "alpha": 11,
+            "beta": 38,
+            "prob_success": 0.22448979591836735
+        },
+        "REEF-1": {
+            "alpha": 9,
+            "beta": 41,
+            "prob_success": 0.18
+        },
+        "REEF-2": {
+            "alpha": 2,
+            "beta": 15,
+            "prob_success": 0.11764705882352941
+        }
+    },
+    "Context(Season: low, Customer: recurring, Commodity: low)": {
+        "TEU-0": {
+            "alpha": 4,
+            "beta": 27,
+            "prob_success": 0.12903225806451613
+        },
+        "TEU-1": {
+            "alpha": 6,
+            "beta": 55,
+            "prob_success": 0.09836065573770492
+        },
+        "TEU-2": {
+            "alpha": 13,
+            "beta": 90,
+            "prob_success": 0.1262135922330097
+        },
+        "FEU-0": {
+            "alpha": 4,
+            "beta": 27,
+            "prob_success": 0.12903225806451613
+        },
+        "FEU-1": {
+            "alpha": 6,
+            "beta": 55,
+            "prob_success": 0.09836065573770492
+        },
+        "FEU-2": {
+            "alpha": 13,
+            "beta": 90,
+            "prob_success": 0.1262135922330097
+        },
+        "HC-0": {
+            "alpha": 4,
+            "beta": 27,
+            "prob_success": 0.12903225806451613
+        },
+        "HC-1": {
+            "alpha": 6,
+            "beta": 55,
+            "prob_success": 0.09836065573770492
+        },
+        "HC-2": {
+            "alpha": 13,
+            "beta": 90,
+            "prob_success": 0.1262135922330097
+        },
+        "REEF-0": {
+            "alpha": 4,
+            "beta": 27,
+            "prob_success": 0.12903225806451613
+        },
+        "REEF-1": {
+            "alpha": 6,
+            "beta": 55,
+            "prob_success": 0.09836065573770492
+        },
+        "REEF-2": {
+            "alpha": 13,
+            "beta": 90,
+            "prob_success": 0.1262135922330097
+        }
+    },
+    "Context(Season: mid, Customer: new, Commodity: high)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    },
+    "Context(Season: mid, Customer: new, Commodity: low)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    },
+    "Context(Season: mid, Customer: recurring, Commodity: high)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    },
+    "Context(Season: mid, Customer: recurring, Commodity: low)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    },
+    "Context(Season: high, Customer: new, Commodity: high)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    },
+    "Context(Season: high, Customer: new, Commodity: low)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    },
+    "Context(Season: high, Customer: recurring, Commodity: high)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    },
+    "Context(Season: high, Customer: recurring, Commodity: low)": {
+        "TEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "TEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "FEU-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "HC-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-0": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-1": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        },
+        "REEF-2": {
+            "alpha": 1,
+            "beta": 1,
+            "prob_success": 0.5
+        }
+    }
+}

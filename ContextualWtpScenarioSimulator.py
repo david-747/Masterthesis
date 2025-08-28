@@ -32,7 +32,8 @@ class ContextualWtpScenarioSimulator:
                  use_real_lp: bool = True,
                  verbose: bool = False,
                  metrics_csv_path: str | None = "metrics_log_wtp.csv",
-                 detailed_log_csv_path: str | None = None  # New parameter for the detailed log
+                 detailed_log_csv_path: str | None = None,  # New parameter for the detailed log
+                 prior_beliefs_path: str | None = None  # <-- ADD THIS
                  ):
         print("Initializing ContextualWtpScenarioSimulator...")
 
@@ -43,6 +44,8 @@ class ContextualWtpScenarioSimulator:
         self.verbose = verbose
         self.metrics_csv_path = metrics_csv_path
         self.detailed_log_csv_path = detailed_log_csv_path # Store path for detailed log
+        self.prior_beliefs_path = prior_beliefs_path  # <-- ADD THIS
+
         self.metrics_records: list[dict] = []
         self.detailed_records: list[dict] = [] # New list for detailed records
 
@@ -121,7 +124,8 @@ class ContextualWtpScenarioSimulator:
         self.agent = DelayedTSAgent(
             all_possible_contexts=self.all_contexts,
             all_possible_products=self.all_products,
-            all_possible_price_indices=self.all_price_indices
+            all_possible_price_indices=self.all_price_indices,
+            prior_beliefs_path=self.prior_beliefs_path  # <-- ADD THIS
         )
         self.cmab = CMAB(
             agent=self.agent,
@@ -587,6 +591,9 @@ if __name__ == '__main__':
             high_value_commodity_ratio=0.4
         )
 
+    # --- DEFINE THE PATH TO YOUR LEARNED BELIEFS ---
+    PRIOR_BELIEFS_FILE = "simulation_outputs_contextual/run_2025-08-28_12-08-58/agent_beliefs.json"  # <-- REPLACE WITH YOUR FILE
+
     sim_config = {
         "customer_scenario_path": SCENARIO_FILE,
         "num_products": 4,
@@ -596,7 +603,8 @@ if __name__ == '__main__':
         "pacing_aggressiveness": 8,
         "use_ts_update": True,
         "use_real_lp": True,
-        "verbose": False,
+        "verbose": True,
+        "prior_beliefs_path": None#PRIOR_BELIEFS_FILE if os.path.exists(PRIOR_BELIEFS_FILE) else None  # <-- ADD THIS
     }
 
     config_save_path = os.path.join(run_folder, "config.json")

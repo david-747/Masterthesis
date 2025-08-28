@@ -2,6 +2,7 @@ import numpy as np
 # Assuming your custom classes are in these files, adjust if necessary
 from Context import Context
 from MiscShipping import Product
+import json
 
 
 class DelayedTSAgent:
@@ -16,7 +17,8 @@ class DelayedTSAgent:
     def __init__(self,
                  all_possible_contexts: list[Context],
                  all_possible_products: list[Product],
-                 all_possible_price_indices: list[int]):
+                 all_possible_price_indices: list[int],
+                 prior_beliefs_path: str = None):
         """
         Initializes the agent.
         """
@@ -28,6 +30,40 @@ class DelayedTSAgent:
         # Key: A tuple (context_hash, product_id, price_vector_id)
         # Value: A tuple (alpha, beta)
         self.posterior_params = {}
+
+        # --- ADD THIS BLOCK TO LOAD PRIOR BELIEFS ---
+        if prior_beliefs_path:
+            self._load_prior_beliefs(prior_beliefs_path)
+            print(f"Successfully loaded prior beliefs from {prior_beliefs_path}")
+        # --- END OF NEW BLOCK ---
+
+    def _load_prior_beliefs(self, filepath: str):
+        """Loads beliefs from a JSON file and populates the posterior_params."""
+        try:
+            with open(filepath, 'r') as f:
+                beliefs = json.load(f)
+
+            for context_str, product_price_beliefs in beliefs.items():
+                # This part is a bit tricky because we need to reconstruct the context key.
+                # A simple way is to find the context object that matches the string representation.
+                matching_context = next((ctx for ctx in self.all_contexts if str(ctx) == context_str), None)
+                if not matching_context:
+                    continue  # Skip if the context from the file is not in the current simulation
+
+                context_key = matching_context.get_key()
+
+                for arm_key, params in product_price_beliefs.items():
+                    # Arm key is in the format "product_id-price_vector_id"
+                    product_id, price_vector_id_str = arm_key.split('-')
+                    price_vector_id = int(price_vector_id_str)
+
+                    internal_key = (context_key, product_id, price_vector_id)
+                    self.posterior_params[internal_key] = (params['alpha'], params['beta'])
+
+        except FileNotFoundError:
+            print(f"Warning: Prior beliefs file not found at {filepath}. Starting with default priors.")
+        except Exception as e:
+            print(f"An error occurred while loading prior beliefs: {e}")
 
     def sample_theta_for_each_arm(self) -> dict:
         """

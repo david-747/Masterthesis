@@ -192,8 +192,12 @@ class ContextualWtpScenarioSimulator:
             if feedback_to_process:
                 self.cmab.process_feedback_for_agent([(fid, s) for _, fid, s in feedback_to_process], t)
 
-            if self.cmab.use_ts_update and remaining_arrivals_count > 0:
-                base_budget = np.maximum(self.current_inventory, 0) / remaining_arrivals_count
+            remaining_time = self.total_time_periods - t
+            if remaining_time == 0:
+                remaining_time = 1
+
+            if self.cmab.use_ts_update: #and remaining_arrivals_count > 0:
+                base_budget = np.maximum(self.current_inventory, 0) / remaining_time#remaining_arrivals_count
                 resource_constraints = base_budget * self.pacing_aggressiveness
             else:
                 resource_constraints = self.initial_resource_inventory / self.total_time_periods
@@ -600,7 +604,7 @@ if __name__ == '__main__':
         "num_price_options_per_product": 3,
         "max_feedback_delay": 3,
         "num_resources": 1,
-        "pacing_aggressiveness": 8,
+        "pacing_aggressiveness": 4,
         "use_ts_update": True,
         "use_real_lp": True,
         "verbose": True,

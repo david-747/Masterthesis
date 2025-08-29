@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: trade_lane_imbalance.csv ---
+Achieved Revenue: $1,438,320.00
+Benchmark (Oracle) Revenue: $2,114,063.12
+Regret (Cost of Learning): $675,743.12
+Percentage of Optimal Revenue Achieved: 68.04%
+Inventory Utilization: 99.56% (448 of 450 units consumed)

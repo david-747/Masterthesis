@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: low_demand_overcapacity.csv ---
+Achieved Revenue: $844,320.00
+Benchmark (Oracle) Revenue: $969,500.83
+Regret (Cost of Learning): $125,180.83
+Percentage of Optimal Revenue Achieved: 87.09%
+Inventory Utilization: 100.00% (450 of 450 units consumed)

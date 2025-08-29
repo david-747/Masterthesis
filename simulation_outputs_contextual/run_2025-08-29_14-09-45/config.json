@@ -1,0 +1,33 @@
+{
+    "customer_scenario_path": "scenarios/peak_season_surge.csv",
+    "num_products": 4,
+    "num_price_options_per_product": 3,
+    "max_feedback_delay": 0,
+    "num_resources": 1,
+    "pacing_aggressiveness": 1,
+    "use_ts_update": true,
+    "use_real_lp": false,
+    "use_contextual_lp": true,
+    "verbose": true,
+    "prior_beliefs_path": null,
+    "base_prices": {
+        "TEU": 3200.0,
+        "FEU": 5800.0,
+        "HC": 6200.0,
+        "REEF": 10000.0
+    },
+    "multipliers": {
+        "0": {
+            "n": "AggressiveHigh",
+            "m": 1.0
+        },
+        "1": {
+            "n": "StandardHigh",
+            "m": 1.25
+        },
+        "2": {
+            "n": "PremiumHigh",
+            "m": 1.6
+        }
+    }
+}

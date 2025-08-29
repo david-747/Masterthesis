@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: peak_season_surge.csv ---
+Achieved Revenue: $1,370,920.00
+Benchmark (Oracle) Revenue: $2,100,916.08
+Regret (Cost of Learning): $729,996.08
+Percentage of Optimal Revenue Achieved: 65.25%
+Inventory Utilization: 98.67% (444 of 450 units consumed)

@@ -29,11 +29,14 @@ class ContextualWtpScenarioSimulator:
                  num_resources: int,
                  use_ts_update: bool = False,
                  pacing_aggressiveness: float = 0.5,
-                 use_real_lp: bool = True,
+                 use_real_lp: bool = False,
+                 use_contextual_lp: bool = True,
                  verbose: bool = False,
                  metrics_csv_path: str | None = "metrics_log_wtp.csv",
                  detailed_log_csv_path: str | None = None,  # New parameter for the detailed log
-                 prior_beliefs_path: str | None = None  # <-- ADD THIS
+                 prior_beliefs_path: str | None = None,  # <-- ADD THIS
+                 base_prices: dict | None = None,
+                 multipliers: dict | None = None
                  ):
         print("Initializing ContextualWtpScenarioSimulator...")
 
@@ -56,15 +59,47 @@ class ContextualWtpScenarioSimulator:
 
         # --- Common components ---
         self.all_products = self._create_products()
-        self.all_price_vectors_map, self.all_price_indices = self._create_price_vectors(self.all_products)
-        self.all_contexts = self._create_contexts()
+
+        # --- DYNAMIC PRICING LOGIC ---
+        # If no specific pricing is provided, use the original "Standard" as default
+        if base_prices is None:
+            base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
+        if multipliers is None:
+            multipliers = {
+                0: {'n': 'Aggressive', 'm': 0.85},
+                1: {'n': 'Standard', 'm': 1.0},
+                2: {'n': 'Premium', 'm': 1.20}
+            }
+
+        # Pass the dynamic pricing to the creation function
+        self.all_price_vectors_map, self.all_price_indices = self._create_price_vectors(
+            self.all_products,
+            base_prices=base_prices,
+            multipliers=multipliers
+        )
+        # -----------------------------
+
+        #self.all_price_vectors_map, self.all_price_indices = self._create_price_vectors(self.all_products)
+        #self.all_contexts = self._create_contexts()
         self.resource_consumption_matrix, self.initial_resource_inventory = self._initialize_resources()
         self.product_to_idx_map = {product.product_id: i for i, product in enumerate(self.all_products)}
-        self.solver_function = solve_real_lp if use_real_lp else None
+
+        if use_contextual_lp:
+            from ContextualLPSolver import solve_contextual_lp
+            self.solver_function = solve_contextual_lp
+        else:
+            self.solver_function = solve_real_lp if use_real_lp else None
+
+        #self.solver_function = solve_real_lp if use_real_lp else None
+
+
         self.demand_scaling_factor = 1.0
 
         # --- Load the complete customer arrival schedule with WTP ---
         self.arrival_schedule = self._load_customer_arrivals(self.customer_scenario_path)
+
+        self.all_contexts = self._create_contexts()
+
         self.total_time_periods = 0
         if self.arrival_schedule:
             self.total_time_periods = max(d['t'] for d in self.arrival_schedule) + 1
@@ -121,15 +156,28 @@ class ContextualWtpScenarioSimulator:
         self.current_time_t = 0
         self.metrics_records = []  # Clear metrics for the new run
         self.detailed_records = [] # Clear detailed records for the new run
+
+        # Calculate context probabilities from the scenario
+        context_probabilities = self._calculate_context_probabilities()
+
         self.agent = DelayedTSAgent(
             all_possible_contexts=self.all_contexts,
             all_possible_products=self.all_products,
             all_possible_price_indices=self.all_price_indices,
             prior_beliefs_path=self.prior_beliefs_path  # <-- ADD THIS
         )
+
+        # Import the contextual solver
+        from ContextualLPSolver import solve_contextual_lp
+
+        # Use contextual solver if context probabilities are available
+        solver_to_use = solve_contextual_lp if context_probabilities else self.solver_function
+
+
         self.cmab = CMAB(
             agent=self.agent,
-            lp_solver_function=self.solver_function,
+            #lp_solver_function=self.solver_function,
+            lp_solver_function=solver_to_use,
             all_products=self.all_products,
             all_price_vectors_map=self.all_price_vectors_map,
             resource_consumption_matrix=self.resource_consumption_matrix,
@@ -137,6 +185,7 @@ class ContextualWtpScenarioSimulator:
             total_time_periods=self.total_time_periods,
             demand_scaling_factor=self.demand_scaling_factor,
             pacing_aggressiveness=self.pacing_aggressiveness,
+            context_probabilities=context_probabilities,  # Pass the calculated probabilities
             use_ts_update=self.use_ts_update
         )
 
@@ -510,26 +559,90 @@ class ContextualWtpScenarioSimulator:
               {'id': 'HC', 'name': '40ft High Cube'}, {'id': 'REEF', 'name': '40ft Reefer (Refrigerated)'}]
         return [Product(product_id=c['id'], name=c['name']) for c in ct]
 
-    def _create_price_vectors(self, products: list[Product]) -> tuple[dict[int, PriceVector], list[int]]:
-        p_map, base = {}, {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
-        mult = {0: {'n': 'Aggressive', 'm': 0.85}, 1: {'n': 'Standard', 'm': 1.0}, 2: {'n': 'Premium', 'm': 1.20}}
+    def _create_price_vectors(self, products: list[Product], base_prices: dict, multipliers: dict) -> tuple[
+        dict[int, PriceVector], list[int]]:
+        """
+        Creates price vectors from a base price map and a multiplier map.
+
+        Args:
+            products: A list of Product objects.
+            base_prices: A dictionary mapping product_id to a base price (e.g., {'TEU': 2500.0, ...}).
+            multipliers: A dictionary defining the pricing tiers (e.g., {0: {'n': 'Aggressive', 'm': 0.85}, ...}).
+
+        Returns:
+            A tuple containing the price vector map and a sorted list of price option keys.
+        """
+        p_map = {}
+        # Ensure num_price_options matches the number of multipliers provided
+        self.num_price_options = len(multipliers)
+
         for i in range(self.num_price_options):
-            l = mult[i]
+            l = multipliers[i]
             pv = PriceVector(vector_id=i, name=f"PV_{i}_{l['n']}")
             for p in products:
-                if p.product_id in base:
-                    pv.set_price(p, Price(base[p.product_id] * l['m'], "USD"))
+                if p.product_id in base_prices:
+                    # Calculate the final price using the base and multiplier
+                    price_value = base_prices[p.product_id] * l['m']
+                    pv.set_price(p, Price(price_value, "USD"))
             p_map[i] = pv
+
         return p_map, sorted(list(p_map.keys()))
 
     def _create_contexts(self) -> list[Context]:
-        return generate_all_domain_contexts(list(Season), list(CustomerType), list(CommodityValue))
+        #return generate_all_domain_contexts(list(Season), list(CustomerType), list(CommodityValue))
+        """Create only contexts relevant to the current scenario's season."""
+        # Detect the season from the scenario
+        scenario_season = self._detect_scenario_season()
+
+        # Only create contexts for this season
+        contexts = []
+        for customer_type in list(CustomerType):
+            for commodity_value in list(CommodityValue):
+                contexts.append(Context(
+                    season=scenario_season,
+                    customer_type=customer_type,
+                    commodity_value=commodity_value
+                ))
+        return contexts
+
+    def _detect_scenario_season(self) -> Season:
+        """Detect the season from the loaded scenario."""
+        if not self.arrival_schedule:
+            return Season.MID  # Default
+
+        # Check the first arrival's season (assuming all are the same)
+        first_arrival = self.arrival_schedule[0]
+        if 'context' in first_arrival:
+            return first_arrival['context'].season
+
+        # Or you could infer from the filename
+        scenario_name = os.path.basename(self.customer_scenario_path).lower()
+        if 'high' in scenario_name or 'peak' in scenario_name:
+            return Season.HIGH
+        elif 'low' in scenario_name:
+            return Season.LOW
+        else:
+            return Season.MID
 
     def _initialize_resources(self) -> tuple[np.ndarray, np.ndarray]:
         cons = {'TEU': 1, 'FEU': 2, 'HC': 2, 'REEF': 2}
         mat = np.array([cons[p.product_id] for p in self.all_products]).reshape((len(self.all_products), 1))
         return mat, np.array([450.0])
 
+
+    def _calculate_context_probabilities(self) -> dict[Context, float]:
+        """Calculate the empirical probability of each context from the scenario."""
+        context_counts = {}
+        for arrival in self.arrival_schedule:
+            context = arrival['context']
+            context_counts[context] = context_counts.get(context, 0) + 1
+
+        total_arrivals = len(self.arrival_schedule)
+        context_probabilities = {
+            context: count / total_arrivals
+            for context, count in context_counts.items()
+        }
+        return context_probabilities
 
 # In ContextualWtpScenarioSimulator.py
 def generate_contextual_wtp_scenario(
@@ -604,6 +717,35 @@ if __name__ == '__main__':
     #SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
     SCENARIO_FILE = "scenarios/peak_season_surge.csv"
 
+    # --- DYNAMICALLY SET PRICING BASED ON SCENARIO ---
+    if "low_demand" in SCENARIO_FILE:
+        print("INFO: Detected low demand scenario. Adjusting pricing downwards.")
+        # Lower base prices and multipliers to stimulate demand
+        base_prices = {'TEU': 1800.0, 'FEU': 3200.0, 'HC': 3500.0, 'REEF': 6000.0}
+        multipliers = {
+            0: {'n': 'DeepDiscount', 'm': 0.75},  # Aggressively low
+            1: {'n': 'StandardLow', 'm': 0.90},
+            2: {'n': 'PremiumLow', 'm': 1.05}
+        }
+    elif "peak_season" in SCENARIO_FILE:
+        print("INFO: Detected peak season scenario. Adjusting pricing upwards.")
+        # Higher base prices and multipliers to capture more value
+        base_prices = {'TEU': 3200.0, 'FEU': 5800.0, 'HC': 6200.0, 'REEF': 10000.0}
+        multipliers = {
+            0: {'n': 'AggressiveHigh', 'm': 1.0},  # Start at the previous standard
+            1: {'n': 'StandardHigh', 'm': 1.25},
+            2: {'n': 'PremiumHigh', 'm': 1.60}  # A higher premium ceiling
+        }
+    else:  # Default for "contextual_wtp" or any other scenario
+        print("INFO: Using standard pricing.")
+        # Your original, well-balanced pricing
+        base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
+        multipliers = {
+            0: {'n': 'Aggressive', 'm': 0.85},
+            1: {'n': 'Standard', 'm': 1.0},
+            2: {'n': 'Premium', 'm': 1.20}
+        }
+
     if not os.path.exists(SCENARIO_FILE):
         generate_contextual_wtp_scenario(
             filepath=SCENARIO_FILE,
@@ -619,13 +761,16 @@ if __name__ == '__main__':
         "customer_scenario_path": SCENARIO_FILE,
         "num_products": 4,
         "num_price_options_per_product": 3,
-        "max_feedback_delay": 24,
+        "max_feedback_delay": 0,
         "num_resources": 1,
         "pacing_aggressiveness": 1,
         "use_ts_update": True,
-        "use_real_lp": True,
+        "use_real_lp": False,
+        "use_contextual_lp": True,  # New flag for contextual solver
         "verbose": True,
-        "prior_beliefs_path": None#PRIOR_BELIEFS_FILE if os.path.exists(PRIOR_BELIEFS_FILE) else None  # <-- ADD THIS
+        "prior_beliefs_path": None,#PRIOR_BELIEFS_FILE if os.path.exists(PRIOR_BELIEFS_FILE) else None  # <-- ADD THIS
+        "base_prices": base_prices,
+        "multipliers": multipliers
     }
 
     config_save_path = os.path.join(run_folder, "config.json")

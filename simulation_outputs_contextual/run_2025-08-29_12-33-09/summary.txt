@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: disruption_recovery.csv ---
+Achieved Revenue: $1,354,960.00
+Benchmark (Oracle) Revenue: $2,356,417.55
+Regret (Cost of Learning): $1,001,457.55
+Percentage of Optimal Revenue Achieved: 57.50%
+Inventory Utilization: 96.67% (435 of 450 units consumed)

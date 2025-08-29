@@ -1,0 +1,33 @@
+{
+    "customer_scenario_path": "scenarios/low_demand_overcapacity.csv",
+    "num_products": 4,
+    "num_price_options_per_product": 3,
+    "max_feedback_delay": 0,
+    "num_resources": 1,
+    "pacing_aggressiveness": 3,
+    "use_ts_update": true,
+    "use_real_lp": false,
+    "use_contextual_lp": true,
+    "verbose": true,
+    "prior_beliefs_path": null,
+    "base_prices": {
+        "TEU": 1800.0,
+        "FEU": 3200.0,
+        "HC": 3500.0,
+        "REEF": 6000.0
+    },
+    "multipliers": {
+        "0": {
+            "n": "DeepDiscount",
+            "m": 0.75
+        },
+        "1": {
+            "n": "StandardLow",
+            "m": 0.9
+        },
+        "2": {
+            "n": "PremiumLow",
+            "m": 1.05
+        }
+    }
+}

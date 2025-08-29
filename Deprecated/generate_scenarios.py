@@ -101,13 +101,13 @@ if __name__ == '__main__':
 
     # --- Generate all scenario files ---
     generate_normal_rate(
-        filename="../scenarios/normal_rate.csv",
+        filename="normal_rate.csv",
         total_periods=TOTAL_PERIODS,
         mean_arrivals=10
     )
 
     generate_demand_shock(
-        filename="../scenarios/demand_shock.csv",
+        filename="demand_shock.csv",
         total_periods=TOTAL_PERIODS,
         normal_mean=10,
         shock_period=TOTAL_PERIODS // 2, # Shock happens halfway through

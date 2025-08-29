@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: enhanced_high_season_scenario.csv ---
+Achieved Revenue: $1,361,720.00
+Benchmark (Oracle) Revenue: $2,492,315.11
+Regret (Cost of Learning): $1,130,595.11
+Percentage of Optimal Revenue Achieved: 54.64%
+Inventory Utilization: 99.78% (449 of 450 units consumed)

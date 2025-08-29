@@ -1,0 +1,12 @@
+{
+    "customer_scenario_path": "scenarios/customer_scenario_contextual_wtp.csv",
+    "num_products": 4,
+    "num_price_options_per_product": 3,
+    "max_feedback_delay": 24,
+    "num_resources": 1,
+    "pacing_aggressiveness": 1,
+    "use_ts_update": true,
+    "use_real_lp": true,
+    "verbose": true,
+    "prior_beliefs_path": null
+}

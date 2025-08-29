@@ -601,7 +601,8 @@ if __name__ == '__main__':
 
     # --- Use the new scenario generation function ---
     #SCENARIO_FILE = "scenarios/customer_scenario_contextual_wtp.csv"
-    SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
+    #SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
+    SCENARIO_FILE = "scenarios/peak_season_surge.csv"
 
     if not os.path.exists(SCENARIO_FILE):
         generate_contextual_wtp_scenario(
@@ -618,9 +619,9 @@ if __name__ == '__main__':
         "customer_scenario_path": SCENARIO_FILE,
         "num_products": 4,
         "num_price_options_per_product": 3,
-        "max_feedback_delay": 3,
+        "max_feedback_delay": 24,
         "num_resources": 1,
-        "pacing_aggressiveness": 4,
+        "pacing_aggressiveness": 1,
         "use_ts_update": True,
         "use_real_lp": True,
         "verbose": True,

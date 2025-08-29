@@ -1,0 +1,6 @@
+--- Performance Summary for Scenario: simple_single_context_scenario.csv ---
+Achieved Revenue: $1,381,760.00
+Benchmark (Oracle) Revenue: $1,733,944.74
+Regret (Cost of Learning): $352,184.74
+Percentage of Optimal Revenue Achieved: 79.69%
+Inventory Utilization: 99.78% (449 of 450 units consumed)

@@ -488,7 +488,7 @@ def generate_wtp_scenario_file(filepath="customer_scenario_wtp.csv", total_hours
 
 # --- Main execution block ---
 if __name__ == '__main__':
-    output_base_dir = "simulation_outputs"
+    output_base_dir = "../simulation_outputs"
     if not os.path.exists(output_base_dir):
         os.makedirs(output_base_dir)
 
@@ -496,7 +496,7 @@ if __name__ == '__main__':
     run_folder = os.path.join(output_base_dir, f"run_{batch_timestamp}")
     os.makedirs(run_folder)
 
-    SCENARIO_FILE = "customer_scenario_wtp.csv"
+    SCENARIO_FILE = "../customer_scenario_wtp.csv"
     if not os.path.exists(SCENARIO_FILE):
         generate_wtp_scenario_file(filepath=SCENARIO_FILE)
 

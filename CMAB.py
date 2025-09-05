@@ -152,6 +152,7 @@ class CMAB:
         # Step 1: Sample Demand theta(t)
         # The agent's posteriors should have been updated by `process_feedback_for_agent`
         sampled_theta_t = self.agent.sample_theta_for_each_arm()
+        #print("For period " + str(current_time_t) + " we sampled theta(t) = " + str(sampled_theta_t))
         # Expected structure: {context_obj: {product_obj: {price_vector_id: sampled_mean_demand}}}
 
         #Note: old code
@@ -210,6 +211,7 @@ class CMAB:
             context_probabilities=self.context_probabilities,
             product_to_idx_map=self.product_to_idx_map  # For indexing into A_ij
         )
+        #print("Current LP Solution: " + str(self.current_lp_solution_x_ksi_k))
         # Expected structure of self.current_lp_solution_x_ksi_k:
         # {context_obj: {price_vector_id: probability_x_ksi_k}}
 

@@ -115,14 +115,14 @@ if __name__ == '__main__':
     )
 
     generate_increasing_demand(
-        filename="../scenarios/increasing_demand.csv",
+        filename="increasing_demand.csv",
         total_periods=TOTAL_PERIODS,
         start_rate=2,
         end_rate=25
     )
 
     generate_decreasing_demand(
-        filename="../scenarios/decreasing_demand.csv",
+        filename="decreasing_demand.csv",
         total_periods=TOTAL_PERIODS,
         start_rate=25,
         end_rate=2

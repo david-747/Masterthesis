@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 from CMAB import CMAB
 from DelayedTSAgent import DelayedTSAgent
 from MiscShipping import Product, PriceVector, Price
-from Context import Context, Season, CustomerType, CommodityValue, generate_all_domain_contexts
-from LPSolver import solve_real_lp
+from Context import Context, Season, CustomerType, CommodityValue
+from Deprecated.LPSolver import solve_real_lp
 
 
 class ContextualWtpScenarioSimulator:
@@ -93,10 +93,16 @@ class ContextualWtpScenarioSimulator:
         #self.solver_function = solve_real_lp if use_real_lp else None
 
 
-        self.demand_scaling_factor = 1.0
 
         # --- Load the complete customer arrival schedule with WTP ---
         self.arrival_schedule = self._load_customer_arrivals(self.customer_scenario_path)
+
+        #total_units = sum(sum(arrival['bundle'].values()) for arrival in self.arrival_schedule)
+        #num_arrivals = len(self.arrival_schedule)
+        #self.demand_scaling_factor = total_units / num_arrivals if num_arrivals > 0 else 1.0
+
+        #print(f"Setting demand_scaling_factor to {self.demand_scaling_factor:.2f} based on average bundle size")
+        self.demand_scaling_factor = 1.0
 
         self.all_contexts = self._create_contexts()
 
@@ -715,7 +721,7 @@ if __name__ == '__main__':
     # --- Use the new scenario generation function ---
     #SCENARIO_FILE = "scenarios/customer_scenario_contextual_wtp.csv"
     #SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
-    SCENARIO_FILE = "scenarios/peak_season_surge.csv"
+    SCENARIO_FILE = "scenarios/mid_season_normal.csv"
 
     # --- DYNAMICALLY SET PRICING BASED ON SCENARIO ---
     if "low_demand" in SCENARIO_FILE:
@@ -732,9 +738,9 @@ if __name__ == '__main__':
         # Higher base prices and multipliers to capture more value
         base_prices = {'TEU': 3200.0, 'FEU': 5800.0, 'HC': 6200.0, 'REEF': 10000.0}
         multipliers = {
-            0: {'n': 'AggressiveHigh', 'm': 1.0},  # Start at the previous standard
-            1: {'n': 'StandardHigh', 'm': 1.25},
-            2: {'n': 'PremiumHigh', 'm': 1.60}  # A higher premium ceiling
+            0: {'n': 'AggressiveHigh', 'm': 0.75},  # Start at the previous standard
+            1: {'n': 'StandardHigh', 'm': 1.0},
+            2: {'n': 'PremiumHigh', 'm': 1.25}  # A higher premium ceiling
         }
     else:  # Default for "contextual_wtp" or any other scenario
         print("INFO: Using standard pricing.")
@@ -743,7 +749,7 @@ if __name__ == '__main__':
         multipliers = {
             0: {'n': 'Aggressive', 'm': 0.85},
             1: {'n': 'Standard', 'm': 1.0},
-            2: {'n': 'Premium', 'm': 1.20}
+            2: {'n': 'Premium', 'm': 1.2}
         }
 
     if not os.path.exists(SCENARIO_FILE):
@@ -763,7 +769,7 @@ if __name__ == '__main__':
         "num_price_options_per_product": 3,
         "max_feedback_delay": 0,
         "num_resources": 1,
-        "pacing_aggressiveness": 1,
+        "pacing_aggressiveness": 2,
         "use_ts_update": True,
         "use_real_lp": False,
         "use_contextual_lp": True,  # New flag for contextual solver

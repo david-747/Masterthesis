@@ -6,7 +6,7 @@ from Context import Season,CommodityValue,CustomerType
 
 # Define the filename for clarity
 original_scenario_file = 'scenarios/customer_scenario_contextual_wtp.csv'
-low_season_scenario_file = 'scenarios/low_season_customer_scenario_contextual_wtp.csv'
+low_season_scenario_file = 'Deprecated/low_season_customer_scenario_contextual_wtp.csv'
 
 try:
     # Load your original scenario file

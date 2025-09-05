@@ -159,7 +159,7 @@ if __name__ == '__main__':
     print(f"\n" + "=" * 60)
 
     generate_simple_scenario(
-        filepath="scenarios/simple_single_context_scenario.csv",
+        filepath="Deprecated/simple_single_context_scenario.csv",
         season=Season.HIGH,
         customer_type=CustomerType.NEW,
         commodity_value=CommodityValue.HIGH,

@@ -92,7 +92,7 @@ def generate_two_context_scenario(
 
 if __name__ == '__main__':
     generate_two_context_scenario(
-        filepath="scenarios/two_context_scenario.csv"
+        filepath="Deprecated/two_context_scenario.csv"
     )
 
     print("\n" + "=" * 60)

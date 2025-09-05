@@ -3,7 +3,11 @@ import numpy as np
 from Context import Context
 from MiscShipping import Product
 import json
-
+'''
+# at top of file
+from debug_logging import get_logger, jlog
+self_logger = get_logger("agent")
+'''
 
 class DelayedTSAgent:
     """
@@ -92,9 +96,19 @@ class DelayedTSAgent:
                     # Use the consistent tuple key to get our internal belief
                     internal_key = (context_key_for_storage, product_id_for_storage, pv_index)
                     alpha, beta = self.posterior_params.get(internal_key, (1, 1))
+                    #print("Theta sampled with initialization of (2,1) and current key " + str(internal_key))
 
                     # Sample the belief
                     sample = np.random.beta(alpha, beta)
+
+                    '''
+                    jlog(self_logger, "theta_sample",
+                         context=str(context),
+                         product_id=product.product_id,
+                         pv_id=pv_index,
+                         alpha=alpha, beta=beta,
+                         theta_sample=sample)
+                         '''
 
                     # Populate the nested dictionary using the OBJECTS as keys
                     sampled_theta_nested[context][product][pv_index] = sample
@@ -122,6 +136,17 @@ class DelayedTSAgent:
 
         # Store the new parameters back into our beliefs dictionary.
         self.posterior_params[key] = (alpha, beta)
+
+
+        '''
+        jlog(self_logger, "posterior_update",
+             context=str(context),
+             product_id=product.product_id,
+             pv_id=price_vector_id,
+             success=success,
+             alpha_before=alpha, beta_before=beta,
+             alpha_after=alpha, beta_after=beta)
+             '''
 
     # In DelayedTSAgent.py, inside the DelayedTSAgent class
     def get_beliefs(self):

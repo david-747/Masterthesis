@@ -34,7 +34,21 @@ def solve_contextual_lp(
                 lowBound=0,
                 upBound=1
             )
-
+    '''
+    prob_floor_tau = 0.4 #0.01  # e.g., 1% — tune 0.5–2%
+    
+    for context in all_contexts:
+        for pv_id in all_price_indices:
+            d_vals = []
+            for prod in all_products:
+                # Keep this consistent with your objective:
+                # sampled_theta_t[context][product][pv_id]
+                prob_d_ik = sampled_theta_t[context][prod][pv_id]
+                d_vals.append(prob_d_ik)
+            score = max(d_vals)
+            if score < prob_floor_tau:
+                x_vars[context][pv_id].upBound = 0.0
+'''
     # Objective: Maximize expected revenue across all contexts
     # E_ξ[sum_k sum_i p_ik * d_ik(ξ|θ) * x_ξ,k]
     objective = 0

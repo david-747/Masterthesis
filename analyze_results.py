@@ -5,7 +5,7 @@ import json
 import os
 
 # --- Configuration ---
-RUN_FOLDER = "simulation_outputs_contextual/run_2025-08-28_21-50-31" # <-- IMPORTANT: CHANGE THIS
+RUN_FOLDER = "simulation_outputs_contextual/run_2025-09-05_18-30-01" # <-- IMPORTANT: CHANGE THIS
 METRICS_FILE = [f for f in os.listdir(RUN_FOLDER) if f.startswith('metrics_log')][0]
 BELIEFS_FILE = "agent_beliefs.json"
 

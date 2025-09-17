@@ -721,7 +721,7 @@ if __name__ == '__main__':
     # --- Use the new scenario generation function ---
     #SCENARIO_FILE = "scenarios/customer_scenario_contextual_wtp.csv"
     #SCENARIO_FILE = "scenarios/low_season_customer_scenario_contextual_wtp.csv"
-    SCENARIO_FILE = "scenarios/mid_season_normal.csv"
+    SCENARIO_FILE = "scenarios/peak_season_surge.csv"
 
     # --- DYNAMICALLY SET PRICING BASED ON SCENARIO ---
     if "low_demand" in SCENARIO_FILE:
@@ -736,20 +736,22 @@ if __name__ == '__main__':
     elif "peak_season" in SCENARIO_FILE:
         print("INFO: Detected peak season scenario. Adjusting pricing upwards.")
         # Higher base prices and multipliers to capture more value
-        base_prices = {'TEU': 3200.0, 'FEU': 5800.0, 'HC': 6200.0, 'REEF': 10000.0}
+        #base_prices = {'TEU': 3200.0, 'FEU': 5800.0, 'HC': 6200.0, 'REEF': 10000.0}
+        base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
         multipliers = {
-            0: {'n': 'AggressiveHigh', 'm': 0.75},  # Start at the previous standard
+            0: {'n': 'AggressiveHigh', 'm': 0.9},#0.75},  # Start at the previous standard
             1: {'n': 'StandardHigh', 'm': 1.0},
-            2: {'n': 'PremiumHigh', 'm': 1.25}  # A higher premium ceiling
+            2: {'n': 'PremiumHigh', 'm': 1.5}#1.25}  # A higher premium ceiling
         }
     else:  # Default for "contextual_wtp" or any other scenario
         print("INFO: Using standard pricing.")
         # Your original, well-balanced pricing
-        base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
+        base_prices = {'TEU': 2875.0, 'FEU': 5175.0, 'HC': 5520.0, 'REEF': 9200.0}
+        #base_prices = {'TEU': 6709.7, 'FEU': 9892.38, 'HC': 11171.39, 'REEF': 134848.04}
         multipliers = {
-            0: {'n': 'Aggressive', 'm': 0.85},
-            1: {'n': 'Standard', 'm': 1.0},
-            2: {'n': 'Premium', 'm': 1.2}
+            0: {'n': 'Aggressive', 'm': 1},#0.75},
+            1: {'n': 'Standard', 'm': 1.3},#1.0},
+            2: {'n': 'Premium', 'm': 2} #1.3}
         }
 
     if not os.path.exists(SCENARIO_FILE):
@@ -769,7 +771,7 @@ if __name__ == '__main__':
         "num_price_options_per_product": 3,
         "max_feedback_delay": 0,
         "num_resources": 1,
-        "pacing_aggressiveness": 2,
+        "pacing_aggressiveness": 0.8,
         "use_ts_update": True,
         "use_real_lp": False,
         "use_contextual_lp": True,  # New flag for contextual solver

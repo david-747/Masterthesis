@@ -143,13 +143,13 @@ if __name__ == '__main__':
 
     # List current directory contents to debug
     print("Current directory contents:")
-    for item in os.listdir('simulation_outputs_contextual/run_2025-08-29_09-20-29'):
+    for item in os.listdir('../simulation_outputs_contextual/run_2025-08-29_09-20-29'):
         print(f"  {item}")
 
     print(f"\nLooking for scenarios directory...")
-    if os.path.exists("scenarios"):
+    if os.path.exists("../scenarios"):
         print("âœ… scenarios directory found")
-        scenarios_contents = os.listdir("scenarios")
+        scenarios_contents = os.listdir("../scenarios")
         print("scenarios directory contents:")
         for item in scenarios_contents:
             print(f"  {item}")
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     print(f"\n" + "=" * 60)
 
     generate_simple_scenario(
-        filepath="Deprecated/simple_single_context_scenario.csv",
+        filepath="simple_single_context_scenario.csv",
         season=Season.HIGH,
         customer_type=CustomerType.NEW,
         commodity_value=CommodityValue.HIGH,

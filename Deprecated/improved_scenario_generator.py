@@ -138,7 +138,7 @@ def generate_enhanced_contextual_wtp_scenario(
 if __name__ == '__main__':
     # Generate LOW season scenario (corrected)
     generate_enhanced_contextual_wtp_scenario(
-        filepath="Deprecated/enhanced_low_season_scenario.csv",
+        filepath="enhanced_low_season_scenario.csv",
         season=Season.LOW,  # FIXED: Now matches filename and creates actual behavioral differences
         new_customer_ratio=0.4,  # Fewer new customers in low season
         high_value_commodity_ratio=0.25,  # Less premium cargo in low season
@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
     # Generate HIGH season scenario for comparison
     generate_enhanced_contextual_wtp_scenario(
-        filepath="Deprecated/enhanced_high_season_scenario.csv",
+        filepath="enhanced_high_season_scenario.csv",
         season=Season.HIGH,
         new_customer_ratio=0.6,  # More new customers in high season
         high_value_commodity_ratio=0.4,  # More premium cargo in high season

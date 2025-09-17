@@ -19,34 +19,77 @@ def run_tuning_experiment():
 
     # --- Core Configuration ---
     # The main folder where all results will be stored.
-    ROOT_OUTPUT_DIR = "pacing_parameter_tuning_results"
+    ROOT_OUTPUT_DIR = "pacing_parameter_tuning_peak_season_surge_0_25_to_10_more_pricing_options"  #"pacing_parameter_tuning_results"
 
     # Define the range for the pacing_aggressiveness parameter.
     # np.arange is used for floating-point steps.
-    PACING_VALUES = np.arange(0.1, 10.1, 0.1)
+    PACING_VALUES = np.arange(0.25, 10.25, 0.25)
 
     # Set the number of times to run the simulation for each parameter value.
-    NUM_RUNS_PER_PARAM = 10
+    NUM_RUNS_PER_PARAM = 5
 
     # Specify the scenario file to be used for all simulations.
-    SCENARIO_FILE = "scenarios/mid_season_normal.csv"
+    SCENARIO_FILE = "scenarios/peak_season_surge.csv"
 
     # A list to store the summary results from every single run.
     all_run_results = []
 
     # --- Base Simulation and Pricing Configuration ---
     # This dictionary holds all the settings that will remain constant across runs.
+    '''
     base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
     multipliers = {
         0: {'n': 'Aggressive', 'm': 0.85},
         1: {'n': 'Standard', 'm': 1.0},
         2: {'n': 'Premium', 'm': 1.2}
     }
+    '''
+    '''
+    base_prices = {'TEU': 2875.0, 'FEU': 5175.0, 'HC': 5520.0, 'REEF': 9200.0}
+    multipliers = {
+        0: {'n': 'Standard', 'm': 1},  # 0.75},
+        1: {'n': 'Premium', 'm': 1.3},  # 1.0},
+        2: {'n': 'PremiumHigh', 'm': 2}  # 1.3}
+    }
+    '''
+
+    '''
+    base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
+    
+    multipliers = {
+        0: {'n': 'Discount', 'm': 0.7},  # 0.75},
+        1: {'n': 'Standard', 'm': 1},  # 1.0},
+        2: {'n': 'Premium', 'm': 1.1}  # 1.3}
+    }
+    
+    multipliers = {
+        0: {'n': 'Aggressive_Discount', 'm': 0.7},
+        1: {'n': 'Standard_Low', 'm': 0.9},
+        2: {'n': 'Premium_Low', 'm': 1.1}
+    }
+    '''
+
+    base_prices = {'TEU': 2500.0, 'FEU': 4500.0, 'HC': 4800.0, 'REEF': 8000.0}
+    '''
+    multipliers = {
+        0: {'n': 'Discount', 'm': 0.9},  # 0.75},
+        1: {'n': 'Standard', 'm': 1.1},  # 1.0},
+        2: {'n': 'Premium', 'm': 1.3}  # 1.3}
+    }
+    '''
+
+    multipliers = {
+        0: {"n": "Discount", "m": 0.85},
+        1: {"n": "Standard", "m": 1.0},
+        2: {"n": "Premium", "m": 1.3},
+        3: {"n": "High_Premium", "m": 1.5}
+    }
+
 
     base_sim_config = {
         "customer_scenario_path": SCENARIO_FILE,
         "num_products": 4,
-        "num_price_options_per_product": 3,
+        "num_price_options_per_product": 4,#3,
         "max_feedback_delay": 0,
         "num_resources": 1,
         "use_ts_update": True,
@@ -70,10 +113,11 @@ def run_tuning_experiment():
         for run_num in range(1, NUM_RUNS_PER_PARAM + 1):
 
             start_time = datetime.now()
-            print(f"Executing: Pacing = {pacing_value:.1f}, Run = {run_num}/{NUM_RUNS_PER_PARAM}...")
+            print(f"Executing: Pacing = {pacing_value:.2f}, Run = {run_num}/{NUM_RUNS_PER_PARAM}...")
 
             # --- 1. Set up Directories and Paths ---
-            pacing_str = f"pacing_{str(pacing_value).replace('.', '_')}"
+            #pacing_str = f"pacing_{str(pacing_value).replace('.', '_')}"
+            pacing_str = f"pacing_{pacing_value:.2f}".replace('.', '_')
             run_dir = os.path.join(ROOT_OUTPUT_DIR, pacing_str, f"run_{run_num}")
             os.makedirs(run_dir, exist_ok=True)
 
@@ -83,7 +127,7 @@ def run_tuning_experiment():
             current_config["pacing_aggressiveness"] = pacing_value
 
             # Set the output paths for this run's log files.
-            current_config["metrics_csv_path"] = os.path.join(run_dir, "metrics_log.csv")
+            current_config["metrics_csv_path"] = os.path.join(run_dir, f"metrics_log_pacing_{pacing_value}.csv")
             current_config["detailed_log_csv_path"] = os.path.join(run_dir, "detailed_agent_log.csv")
 
             # Save the configuration file for this run.
@@ -157,7 +201,7 @@ def run_tuning_experiment():
     max_revenue = optimal_point['avg_revenue']
 
     ax.axvline(x=optimal_pacing, color='r', linestyle='--',
-               label=f"Optimal Pacing ≈ {optimal_pacing:.1f} (${max_revenue:,.0f})")
+               label=f"Optimal Pacing ≈ {optimal_pacing:.2f} (${max_revenue:,.0f})")
 
     # Formatting the plot
     ax.set_title("Impact of Pacing Aggressiveness on Revenue", fontsize=16, fontweight='bold')

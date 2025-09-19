@@ -9,6 +9,7 @@ class Season(Enum):
     MID = "mid"
     HIGH = "high"
 
+
     def __str__(self):
         return self.value # User-friendly string representation
 

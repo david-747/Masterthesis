@@ -155,23 +155,6 @@ class CMAB:
         #print("For period " + str(current_time_t) + " we sampled theta(t) = " + str(sampled_theta_t))
         # Expected structure: {context_obj: {product_obj: {price_vector_id: sampled_mean_demand}}}
 
-        #Note: old code
-        '''
-        # --- 4. ADDED: Dynamic Resource Constraint Calculation ---
-        if self.use_ts_update:
-            # This is the TS-Update logic from Algorithm 2 [cite: 297]
-            remaining_time = self.total_time_periods_T - current_time_t
-            if remaining_time > 0:
-                # Ensure inventory isn't negative before division
-                safe_inventory = np.maximum(current_inventory, 0)
-                resource_constraints_c_j = safe_inventory / remaining_time
-            else:
-                resource_constraints_c_j = np.zeros_like(current_inventory)
-        else:
-            # This is the original TS-Fixed logic from Algorithm 1 [cite: 220]
-            resource_constraints_c_j = self.initial_resource_inventory_I_j / self.total_time_periods_T
-        '''
-
         #Note: Budget calc moved to Simulator.py
         '''
         # --- UPDATED BUDGET LOGIC ---

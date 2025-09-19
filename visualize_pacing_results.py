@@ -34,7 +34,7 @@ def create_simplified_final_plot(csv_path: str, output_image_path: str):
     summary_df['std_performance_pct'] = (summary_df['std_revenue'] / benchmark_revenue) * 100
 
     optimal_point = summary_df.loc[summary_df['avg_revenue'].idxmax()]
-    optimal_pacing = optimal_point['pacing_aggressiveness']
+    #optimal_pacing = optimal_point['pacing_aggressiveness']
     max_revenue = optimal_point['avg_revenue']
     max_percentage = optimal_point['avg_performance_pct']
 
@@ -59,17 +59,17 @@ def create_simplified_final_plot(csv_path: str, output_image_path: str):
     ax2.get_yaxis().set_major_formatter(mticker.FuncFormatter(lambda x, p: f'${int(x):,}'))
 
     # --- 4. Plot Data and Reference Lines on the Primary Axis (ax1) ---
-    ax1.plot(summary_df["pacing_aggressiveness"], summary_df["avg_performance_pct"],
+    ax1.plot(summary_df["max_feedback_delay"], summary_df["avg_performance_pct"],
              marker='o', linestyle='-', color='royalblue', label="Agent Performance")
     ax1.fill_between(
-        summary_df["pacing_aggressiveness"],
+        summary_df["max_feedback_delay"],
         summary_df["avg_performance_pct"] - summary_df['std_performance_pct'],
         summary_df["avg_performance_pct"] + summary_df['std_performance_pct'],
         color='royalblue', alpha=0.2
     )
     ax1.axhline(y=100, color='red', linestyle='--', label='Oracle Benchmark')
     ax1.axhline(y=max_percentage, color='green', linestyle=':', label=f'Agent Peak Performance: {max_percentage:,.2f}% of oracle')
-    ax1.axvline(x=optimal_pacing, color='darkorange', linestyle=':', label=f"Optimal Pacing ≈ {optimal_pacing:.2f}")
+    #ax1.axvline(x=optimal_pacing, color='darkorange', linestyle=':', label=f"Optimal Pacing ≈ {optimal_pacing:.2f}")
 
     # --- 5. Set Ticks and Finalize Axis Limits (The Correct Way) ---
     # First, set the revenue ticks on the right axis to ONLY the two key values.
@@ -84,12 +84,13 @@ def create_simplified_final_plot(csv_path: str, output_image_path: str):
     ax1.set_ylim((y2_min / benchmark_revenue) * 100, (y2_max / benchmark_revenue) * 100)
 
     # --- 6. Configure Grid Lines ---
+    ax1.set_ylim(50, 105)
     ax1.yaxis.grid(True, linestyle='--')
     ax1.xaxis.grid(True, linestyle='--')
     ax2.yaxis.grid(False)
 
     # --- 7. Finalize Plot ---
-    fig.suptitle("Impact of Pacing Aggressiveness on Performance (low season)", fontsize=24, fontweight='bold')
+    fig.suptitle("Impact of Delay on Performance (mid season fluctuating WTP)", fontsize=24, fontweight='bold')
     ax1.legend(loc='lower center', fontsize=20)
     fig.tight_layout()
 
@@ -100,7 +101,7 @@ def create_simplified_final_plot(csv_path: str, output_image_path: str):
 
 # --- Main execution block ---
 if __name__ == '__main__':
-    INPUT_CSV_FILE = 'pacing_parameter_tuning_low_season_0_25_to_10_better_prices/summary_results.csv'
-    OUTPUT_PLOT_FILE = 'pacing_parameter_tuning_low_season_0_25_to_10_better_prices/pacing_performance_dual_axis_v2.png'
+    INPUT_CSV_FILE = 'delay_parameter_tuning_results/summary_delay_results.csv'
+    OUTPUT_PLOT_FILE = 'delay_parameter_tuning_results/delay_performance.png'
 
     create_simplified_final_plot(INPUT_CSV_FILE, OUTPUT_PLOT_FILE)
